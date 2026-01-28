@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starfield - Hyperspace Particle System</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <canvas id="starfield"></canvas>
+
+    <div id="controls" class="control-panel">
+        <button id="toggle-controls" class="toggle-btn" aria-label="Toggle controls">
+            <span class="toggle-icon">&#9881;</span>
+        </button>
+
+        <div class="controls-content">
+            <h2>Starfield Controls</h2>
+
+            <div class="control-group">
+                <label for="trail-length">Trail Length</label>
+                <input type="range" id="trail-length" min="0" max="100" value="50">
+                <span class="value-display" id="trail-value">50</span>
+            </div>
+
+            <div class="control-group">
+                <label for="star-count">Star Count</label>
+                <input type="range" id="star-count" min="100" max="2000" value="1000">
+                <span class="value-display" id="count-value">1000</span>
+            </div>
+
+            <div class="control-group">
+                <label for="star-speed">Star Speed</label>
+                <input type="range" id="star-speed" min="0.5" max="5" step="0.1" value="1">
+                <span class="value-display" id="speed-value">1.0x</span>
+            </div>
+
+            <div class="control-group">
+                <label for="spawn-radius">Spawn Radius</label>
+                <input type="range" id="spawn-radius" min="0" max="300" value="10">
+                <span class="value-display" id="radius-value">10px</span>
+            </div>
+
+            <div class="control-group">
+                <label for="star-color">Star Color</label>
+                <select id="star-color">
+                    <option value="#FFFFFF" selected>Classic White</option>
+                    <option value="#E0F0FF">Blue-White</option>
+                    <option value="#00FFFF">Cyan</option>
+                    <option value="#BB88FF">Purple</option>
+                    <option value="rainbow">Rainbow</option>
+                </select>
+            </div>
+
+            <div class="control-group checkbox-group">
+                <label for="show-spaceship">
+                    <input type="checkbox" id="show-spaceship">
+                    Show Spaceship
+                </label>
+            </div>
+
+            <div class="control-group checkbox-group">
+                <label for="reduce-motion">
+                    <input type="checkbox" id="reduce-motion">
+                    Reduce Motion
+                </label>
+            </div>
+
+            <div class="control-group checkbox-group">
+                <label for="show-fps">
+                    <input type="checkbox" id="show-fps">
+                    Show FPS
+                </label>
+            </div>
+
+            <button id="pause-btn" class="action-btn" aria-label="Pause animation">
+                Pause
+            </button>
+        </div>
+    </div>
+
+    <div id="fps-counter" class="fps-counter hidden">FPS: 60</div>
+
+    <div id="performance-warning" class="warning hidden">
+        High particle count may affect performance
+    </div>
+
+    <script src="js/particle.js"></script>
+    <script src="js/starfield.js"></script>
+    <script src="js/spaceship.js"></script>
+    <script src="js/controls.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
