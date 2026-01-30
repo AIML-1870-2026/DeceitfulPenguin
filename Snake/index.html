@@ -1,0 +1,2035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-color: #0a0a0a;
+            --text-color: #ffffff;
+            --accent-color: #00ffff;
+            --accent-secondary: #ff00ff;
+            --grid-color: #1a1a2e;
+            --panel-bg: rgba(20, 20, 40, 0.95);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px var(--accent-color);
+        }
+
+        .menu-btn {
+            display: block;
+            width: 100%;
+            max-width: 280px;
+            margin: 10px auto;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            background: transparent;
+            border: 2px solid var(--accent-color);
+            color: var(--accent-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .menu-btn:hover {
+            background: var(--accent-color);
+            color: var(--bg-color);
+            box-shadow: 0 0 20px var(--accent-color);
+        }
+
+        .bottom-menu {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 40px;
+        }
+
+        .bottom-btn {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            background: transparent;
+            border: 1px solid var(--accent-secondary);
+            color: var(--accent-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .bottom-btn:hover {
+            background: var(--accent-secondary);
+            color: var(--bg-color);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--panel-bg);
+            border: 2px solid var(--accent-color);
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Settings Styles */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .setting-label {
+            font-size: 1rem;
+        }
+
+        select, input[type="checkbox"] {
+            background: var(--bg-color);
+            border: 1px solid var(--accent-color);
+            color: var(--text-color);
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+
+        select {
+            min-width: 120px;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent-color);
+        }
+
+        /* Skins Grid */
+        .skins-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .skin-item {
+            aspect-ratio: 1;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .skin-item:hover {
+            border-color: var(--accent-color);
+        }
+
+        .skin-item.selected {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        .skin-item.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .skin-item.locked::after {
+            content: '🔒';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+        }
+
+        .skin-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            border: 1px solid var(--accent-color);
+            margin-bottom: 5px;
+        }
+
+        .skin-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--accent-color);
+        }
+
+        .skin-item:hover .skin-tooltip {
+            display: block;
+        }
+
+        .skin-preview {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 5px;
+        }
+
+        .skin-name {
+            font-size: 0.6rem;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        /* Achievements */
+        .achievement-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            border-left: 4px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .achievement-item.unlocked {
+            border-left-color: var(--accent-color);
+        }
+
+        .achievement-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+
+        .achievement-info {
+            flex: 1;
+            text-align: left;
+        }
+
+        .achievement-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .achievement-desc {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        .achievement-progress {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .achievement-progress-bar {
+            height: 100%;
+            background: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+
+        /* Game Screen */
+        #game-screen {
+            display: none;
+        }
+
+        #game-screen.active {
+            display: block;
+        }
+
+        #menu-screen.hidden {
+            display: none;
+        }
+
+        .game-hud {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        #game-canvas {
+            border: 2px solid var(--accent-color);
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+
+        .game-hint {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        /* Overlays */
+        .overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .overlay.active {
+            display: flex;
+        }
+
+        .overlay-title {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px var(--accent-color);
+        }
+
+        .overlay-score {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+
+        .overlay-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Achievement Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            color: #000;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            animation: slideIn 0.5s ease, fadeOut 0.5s ease 2.5s forwards;
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .toast-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .toast-skin {
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+
+        /* Canvas Container */
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Theme-specific styles */
+        .theme-retro body {
+            font-family: 'Courier New', monospace;
+        }
+
+        .theme-retro #game-canvas {
+            image-rendering: pixelated;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 480px) {
+            .title {
+                font-size: 1.8rem;
+            }
+
+            .menu-btn {
+                padding: 12px 20px;
+                font-size: 1rem;
+            }
+
+            .skins-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
+        }
+
+        /* New achievements in game over */
+        .new-achievements {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #ffd700;
+        }
+
+        .new-achievements-title {
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .new-achievement-item {
+            margin: 5px 0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Main Menu Screen -->
+        <div id="menu-screen">
+            <h1 class="title">SNAKE</h1>
+            <button class="menu-btn" data-mode="classic">Classic Mode</button>
+            <button class="menu-btn" data-mode="timeattack">Time Attack</button>
+            <button class="menu-btn" data-mode="survival">Survival</button>
+            <button class="menu-btn" data-mode="maze">Maze</button>
+            <button class="menu-btn" data-mode="zen">Zen</button>
+
+            <div class="bottom-menu">
+                <button class="bottom-btn" id="settings-btn">Settings</button>
+                <button class="bottom-btn" id="skins-btn">Skins</button>
+                <button class="bottom-btn" id="achievements-btn">Awards</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen">
+            <div class="game-hud">
+                <span id="score-display">Score: 0</span>
+                <span id="mode-display">Mode: Classic</span>
+                <span id="time-display" style="display: none;">Time: 0s</span>
+            </div>
+            <div class="canvas-container">
+                <canvas id="game-canvas"></canvas>
+
+                <!-- Pause Overlay -->
+                <div class="overlay" id="pause-overlay">
+                    <h2 class="overlay-title">PAUSED</h2>
+                    <div class="overlay-buttons">
+                        <button class="menu-btn" id="resume-btn">Resume</button>
+                        <button class="menu-btn" id="restart-btn">Restart</button>
+                        <button class="menu-btn" id="menu-btn">Main Menu</button>
+                    </div>
+                </div>
+
+                <!-- Game Over Overlay -->
+                <div class="overlay" id="gameover-overlay">
+                    <h2 class="overlay-title">GAME OVER</h2>
+                    <div class="overlay-score" id="final-score">Score: 0</div>
+                    <div class="new-achievements" id="new-achievements" style="display: none;">
+                        <div class="new-achievements-title">Achievements Unlocked!</div>
+                        <div id="achievements-list"></div>
+                    </div>
+                    <div class="overlay-buttons">
+                        <button class="menu-btn" id="playagain-btn">Play Again</button>
+                        <button class="menu-btn" id="gameover-menu-btn">Main Menu</button>
+                    </div>
+                </div>
+
+                <!-- Win Overlay (Time Attack) -->
+                <div class="overlay" id="win-overlay">
+                    <h2 class="overlay-title" style="color: #00ff00;">VICTORY!</h2>
+                    <div class="overlay-score" id="win-time">Time: 0s</div>
+                    <div class="new-achievements" id="win-achievements" style="display: none;">
+                        <div class="new-achievements-title">Achievements Unlocked!</div>
+                        <div id="win-achievements-list"></div>
+                    </div>
+                    <div class="overlay-buttons">
+                        <button class="menu-btn" id="win-playagain-btn">Play Again</button>
+                        <button class="menu-btn" id="win-menu-btn">Main Menu</button>
+                    </div>
+                </div>
+            </div>
+            <p class="game-hint" id="game-hint">Press any arrow key to start</p>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">Theme</span>
+                <select id="theme-select">
+                    <option value="neon">Neon Cyber</option>
+                    <option value="retro">Retro Arcade</option>
+                    <option value="minimalist">Minimalist</option>
+                    <option value="nature">Nature</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="space">Space</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">Speed</span>
+                <select id="speed-select">
+                    <option value="slow">Slow</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="fast">Fast</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <span class="setting-label">Show Grid</span>
+                <input type="checkbox" id="grid-toggle" checked>
+            </div>
+            <div class="setting-row" style="opacity: 0.5;">
+                <span class="setting-label">Sound (Coming Soon)</span>
+                <input type="checkbox" id="sound-toggle" disabled>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skins Modal -->
+    <div class="modal" id="skins-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Snake Skins</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="skins-grid" id="skins-grid"></div>
+        </div>
+    </div>
+
+    <!-- Achievements Modal -->
+    <div class="modal" id="achievements-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Achievements</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div id="achievements-container"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ============== CONSTANTS ==============
+        const GRID_SIZE = 20;
+        const SPEEDS = {
+            slow: 200,
+            normal: 150,
+            fast: 100
+        };
+
+        // ============== THEMES ==============
+        const THEMES = {
+            neon: {
+                name: 'Neon Cyber',
+                background: '#0a0a0a',
+                snakeHead: '#00ffff',
+                snakeBody: '#00ff88',
+                food: '#ff00ff',
+                gridLines: '#1a1a2e',
+                particleColors: ['#00ffff', '#ff00ff'],
+                glow: true,
+                textColor: '#ffffff',
+                accentColor: '#00ffff'
+            },
+            retro: {
+                name: 'Retro Arcade',
+                background: '#000000',
+                snakeHead: '#00ff00',
+                snakeBody: '#00cc00',
+                food: '#ff0000',
+                gridLines: null,
+                particleColors: ['#00ff00', '#ff0000'],
+                glow: false,
+                textColor: '#00ff00',
+                accentColor: '#00ff00'
+            },
+            minimalist: {
+                name: 'Minimalist',
+                background: '#f5f5f5',
+                snakeHead: '#333333',
+                snakeBody: '#555555',
+                food: '#e74c3c',
+                gridLines: '#e0e0e0',
+                particleColors: ['#666666', '#999999'],
+                glow: false,
+                textColor: '#333333',
+                accentColor: '#333333'
+            },
+            nature: {
+                name: 'Nature',
+                background: '#90EE90',
+                snakeHead: '#228B22',
+                snakeBody: '#2E7D32',
+                food: '#FF6B6B',
+                gridLines: null,
+                particleColors: ['#228B22', '#FFD700'],
+                glow: false,
+                textColor: '#1a4d1a',
+                accentColor: '#228B22'
+            },
+            ocean: {
+                name: 'Ocean',
+                background: '#006994',
+                snakeHead: '#00CED1',
+                snakeBody: '#20B2AA',
+                food: '#FFD700',
+                gridLines: null,
+                particleColors: ['#00CED1', '#FFD700'],
+                glow: true,
+                textColor: '#ffffff',
+                accentColor: '#00CED1',
+                bubbles: true
+            },
+            space: {
+                name: 'Space',
+                background: '#0c0c1e',
+                snakeHead: '#E0E0E0',
+                snakeBody: '#A0A0A0',
+                food: '#FFD700',
+                gridLines: null,
+                particleColors: ['#ffffff', '#FFD700'],
+                glow: true,
+                textColor: '#ffffff',
+                accentColor: '#E0E0E0',
+                stars: true
+            }
+        };
+
+        // ============== SKINS ==============
+        const SKINS = {
+            classic_green: {
+                name: 'Classic Green',
+                colors: ['#00ff00', '#00cc00'],
+                effect: null
+            },
+            blue_racer: {
+                name: 'Blue Racer',
+                colors: ['#0088ff', '#0066cc'],
+                effect: 'speedlines'
+            },
+            lightning_yellow: {
+                name: 'Lightning Yellow',
+                colors: ['#ffdd00', '#ffaa00'],
+                effect: 'lightning'
+            },
+            golden_serpent: {
+                name: 'Golden Serpent',
+                colors: ['#ffd700', '#b8860b'],
+                effect: 'metallic'
+            },
+            rainbow_shifter: {
+                name: 'Rainbow Shifter',
+                colors: ['rainbow'],
+                effect: 'rainbow'
+            },
+            camo_snake: {
+                name: 'Camo Snake',
+                colors: ['#556b2f', '#8b7355'],
+                effect: 'camo'
+            },
+            brick_pattern: {
+                name: 'Brick Pattern',
+                colors: ['#b22222', '#8b0000'],
+                effect: 'brick'
+            },
+            pastel_gradient: {
+                name: 'Pastel Gradient',
+                colors: ['#ffb6c1', '#87ceeb'],
+                effect: 'gradient'
+            },
+            chrono_silver: {
+                name: 'Chrono Silver',
+                colors: ['#c0c0c0', '#808080'],
+                effect: 'metallic'
+            },
+            chonky_thicc: {
+                name: 'Chonky Thicc',
+                colors: ['#ff6b6b', '#ee5a5a'],
+                effect: 'chonky'
+            },
+            diamond_sparkle: {
+                name: 'Diamond Sparkle',
+                colors: ['#87ceeb', '#add8e6'],
+                effect: 'sparkle'
+            },
+            neon_purple: {
+                name: 'Neon Purple',
+                colors: ['#9400d3', '#8b008b'],
+                effect: 'glow'
+            },
+            ghost_transparent: {
+                name: 'Ghost',
+                colors: ['rgba(200,200,255,0.5)', 'rgba(180,180,255,0.3)'],
+                effect: 'ghost'
+            },
+            cosmic_starfield: {
+                name: 'Cosmic Starfield',
+                colors: ['#1a1a2e', '#16213e'],
+                effect: 'starfield'
+            }
+        };
+
+        // ============== ACHIEVEMENTS ==============
+        const ACHIEVEMENTS = {
+            first_bite: {
+                name: 'First Bite',
+                description: 'Eat 1 food',
+                requirement: 'Eat 1 food (any mode except Zen)',
+                unlocks: 'classic_green',
+                icon: '🍎'
+            },
+            getting_longer: {
+                name: 'Getting Longer',
+                description: 'Reach length 15',
+                requirement: 'Reach snake length of 15 in a single game',
+                unlocks: 'blue_racer',
+                icon: '📏'
+            },
+            speed_eater: {
+                name: 'Speed Eater',
+                description: 'Eat 5 food in 8 seconds',
+                requirement: 'Eat 5 food within 8 seconds',
+                unlocks: 'lightning_yellow',
+                icon: '⚡'
+            },
+            century_club: {
+                name: 'Century Club',
+                description: 'Score 100 in Classic',
+                requirement: 'Score 100 or more in Classic mode',
+                unlocks: 'golden_serpent',
+                icon: '💯'
+            },
+            explorer: {
+                name: 'Explorer',
+                description: 'Play all 5 modes',
+                requirement: 'Play all 5 game modes at least once',
+                unlocks: 'rainbow_shifter',
+                icon: '🗺️',
+                trackable: true,
+                max: 5
+            },
+            survivor: {
+                name: 'Survivor',
+                description: 'Survive 120s in Survival',
+                requirement: 'Survive for 120 seconds in Survival mode',
+                unlocks: 'camo_snake',
+                icon: '🏕️'
+            },
+            maze_runner: {
+                name: 'Maze Runner',
+                description: 'Complete 5 maze levels',
+                requirement: 'Complete 5 maze levels (50 food in Maze)',
+                unlocks: 'brick_pattern',
+                icon: '🧩'
+            },
+            zen_master: {
+                name: 'Zen Master',
+                description: 'Play Zen for 180s',
+                requirement: 'Play Zen mode continuously for 180 seconds',
+                unlocks: 'pastel_gradient',
+                icon: '🧘'
+            },
+            time_lord: {
+                name: 'Time Lord',
+                description: 'Time Attack under 45s',
+                requirement: 'Complete Time Attack in under 45 seconds',
+                unlocks: 'chrono_silver',
+                icon: '⏱️'
+            },
+            gluttonous: {
+                name: 'Gluttonous',
+                description: 'Eat 50 food in one game',
+                requirement: 'Eat 50 food in a single game',
+                unlocks: 'chonky_thicc',
+                icon: '🍔'
+            },
+            corner_hunter: {
+                name: 'Corner Hunter',
+                description: 'Eat food in all 4 corners',
+                requirement: 'Eat food in all 4 corners in a single game',
+                unlocks: 'diamond_sparkle',
+                icon: '💎'
+            },
+            night_owl: {
+                name: 'Night Owl',
+                description: 'Start 10 games',
+                requirement: 'Start 10 games (any mode)',
+                unlocks: 'neon_purple',
+                icon: '🦉',
+                trackable: true,
+                max: 10
+            },
+            untouchable: {
+                name: 'Untouchable',
+                description: 'Eat 30 food in Maze mode',
+                requirement: 'Eat 30 food in Maze without dying',
+                unlocks: 'ghost_transparent',
+                icon: '👻'
+            },
+            dedicated: {
+                name: 'Dedicated',
+                description: 'Unlock 10 achievements',
+                requirement: 'Unlock 10 other achievements',
+                unlocks: 'cosmic_starfield',
+                icon: '🌟',
+                trackable: true,
+                max: 10
+            }
+        };
+
+        // ============== STATE ==============
+        const gameState = {
+            currentScreen: 'menu',
+            gameMode: 'classic',
+            snake: [],
+            direction: { x: 1, y: 0 },
+            nextDirection: { x: 1, y: 0 },
+            food: [],
+            obstacles: [],
+            score: 0,
+            timeElapsed: 0,
+            mazeLevel: 0,
+            mazeWalls: [],
+            isPaused: false,
+            isGameOver: false,
+            waitingForInput: true,
+            foodEatenTimestamps: [],
+            cornersEaten: new Set()
+        };
+
+        const sessionState = {
+            selectedTheme: 'neon',
+            selectedSkin: 'classic_green',
+            unlockedSkins: new Set(['classic_green']),
+            unlockedAchievements: new Set(['first_bite']),
+            achievementProgress: {
+                gamesPlayed: 0,
+                modesPlayed: new Set()
+            },
+            settings: {
+                speed: 'normal',
+                showGrid: true,
+                sound: false
+            }
+        };
+
+        // ============== CANVAS SETUP ==============
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let cellSize;
+        let gameLoop;
+        let timeLoop;
+        let obstacleLoop;
+
+        function resizeCanvas() {
+            const container = document.querySelector('.game-container');
+            const maxSize = Math.min(container.clientWidth - 40, 500);
+            canvas.width = maxSize;
+            canvas.height = maxSize;
+            cellSize = canvas.width / GRID_SIZE;
+        }
+
+        // ============== PARTICLES ==============
+        const particles = [];
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.life = 1;
+                this.decay = 0.02 + Math.random() * 0.02;
+                this.color = color;
+                this.size = 3 + Math.random() * 3;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                this.size *= 0.95;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function emitParticles(x, y, count = 10) {
+            const theme = THEMES[sessionState.selectedTheme];
+            for (let i = 0; i < count; i++) {
+                const color = theme.particleColors[Math.floor(Math.random() * theme.particleColors.length)];
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => p.draw(ctx));
+        }
+
+        // Background particles (stars, bubbles)
+        const bgParticles = [];
+
+        function initBgParticles() {
+            bgParticles.length = 0;
+            const theme = THEMES[sessionState.selectedTheme];
+            if (theme.stars) {
+                for (let i = 0; i < 50; i++) {
+                    bgParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 2,
+                        twinkle: Math.random() * Math.PI * 2
+                    });
+                }
+            } else if (theme.bubbles) {
+                for (let i = 0; i < 20; i++) {
+                    bgParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: 3 + Math.random() * 5,
+                        speed: 0.2 + Math.random() * 0.3
+                    });
+                }
+            }
+        }
+
+        function updateBgParticles() {
+            const theme = THEMES[sessionState.selectedTheme];
+            if (theme.stars) {
+                bgParticles.forEach(p => {
+                    p.twinkle += 0.05;
+                });
+            } else if (theme.bubbles) {
+                bgParticles.forEach(p => {
+                    p.y -= p.speed;
+                    if (p.y < -10) {
+                        p.y = canvas.height + 10;
+                        p.x = Math.random() * canvas.width;
+                    }
+                });
+            }
+        }
+
+        function drawBgParticles() {
+            const theme = THEMES[sessionState.selectedTheme];
+            if (theme.stars) {
+                ctx.fillStyle = '#ffffff';
+                bgParticles.forEach(p => {
+                    ctx.globalAlpha = 0.3 + Math.sin(p.twinkle) * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            } else if (theme.bubbles) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 1;
+                bgParticles.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
+            }
+        }
+
+        // ============== MAZE GENERATION ==============
+        function generateMaze() {
+            const maze = [];
+            const visited = [];
+
+            // Initialize grid
+            for (let y = 0; y < GRID_SIZE; y++) {
+                maze[y] = [];
+                visited[y] = [];
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    maze[y][x] = 1; // 1 = wall
+                    visited[y][x] = false;
+                }
+            }
+
+            // Recursive backtracking
+            function carve(x, y) {
+                visited[y][x] = true;
+                maze[y][x] = 0;
+
+                const directions = [
+                    { dx: 0, dy: -2 },
+                    { dx: 0, dy: 2 },
+                    { dx: -2, dy: 0 },
+                    { dx: 2, dy: 0 }
+                ];
+
+                // Shuffle directions
+                for (let i = directions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [directions[i], directions[j]] = [directions[j], directions[i]];
+                }
+
+                for (const dir of directions) {
+                    const nx = x + dir.dx;
+                    const ny = y + dir.dy;
+
+                    if (nx > 0 && nx < GRID_SIZE - 1 && ny > 0 && ny < GRID_SIZE - 1 && !visited[ny][nx]) {
+                        maze[y + dir.dy / 2][x + dir.dx / 2] = 0;
+                        carve(nx, ny);
+                    }
+                }
+            }
+
+            // Start from center-ish
+            carve(1, 1);
+
+            // Remove ~30% of walls to create multiple paths
+            const wallsToRemove = [];
+            for (let y = 1; y < GRID_SIZE - 1; y++) {
+                for (let x = 1; x < GRID_SIZE - 1; x++) {
+                    if (maze[y][x] === 1) {
+                        wallsToRemove.push({ x, y });
+                    }
+                }
+            }
+
+            const removeCount = Math.floor(wallsToRemove.length * 0.3);
+            for (let i = 0; i < removeCount; i++) {
+                const idx = Math.floor(Math.random() * wallsToRemove.length);
+                const wall = wallsToRemove.splice(idx, 1)[0];
+                maze[wall.y][wall.x] = 0;
+            }
+
+            // Convert to wall positions
+            gameState.mazeWalls = [];
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    if (maze[y][x] === 1) {
+                        gameState.mazeWalls.push({ x, y });
+                    }
+                }
+            }
+
+            // Clear area around snake start
+            const startArea = [
+                { x: 9, y: 10 }, { x: 10, y: 10 }, { x: 11, y: 10 },
+                { x: 9, y: 9 }, { x: 10, y: 9 }, { x: 11, y: 9 },
+                { x: 9, y: 11 }, { x: 10, y: 11 }, { x: 11, y: 11 }
+            ];
+            gameState.mazeWalls = gameState.mazeWalls.filter(w =>
+                !startArea.some(s => s.x === w.x && s.y === w.y)
+            );
+        }
+
+        // ============== GAME LOGIC ==============
+        function initGame() {
+            gameState.snake = [
+                { x: 10, y: 10 },
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            gameState.direction = { x: 1, y: 0 };
+            gameState.nextDirection = { x: 1, y: 0 };
+            gameState.food = [];
+            gameState.obstacles = [];
+            gameState.mazeWalls = [];
+            gameState.score = 0;
+            gameState.timeElapsed = 0;
+            gameState.mazeLevel = 1;
+            gameState.isPaused = false;
+            gameState.isGameOver = false;
+            gameState.waitingForInput = true;
+            gameState.foodEatenTimestamps = [];
+            gameState.cornersEaten = new Set();
+            particles.length = 0;
+
+            // Track games played
+            sessionState.achievementProgress.gamesPlayed++;
+            sessionState.achievementProgress.modesPlayed.add(gameState.gameMode);
+
+            checkAchievement('night_owl');
+            checkAchievement('explorer');
+
+            if (gameState.gameMode === 'maze') {
+                generateMaze();
+            }
+
+            spawnFood();
+            updateHUD();
+            document.getElementById('game-hint').textContent = 'Press any arrow key to start';
+        }
+
+        function spawnFood() {
+            const maxFood = gameState.gameMode === 'zen' ? 3 : 1;
+
+            while (gameState.food.length < maxFood) {
+                let attempts = 0;
+                let pos;
+
+                do {
+                    pos = {
+                        x: Math.floor(Math.random() * GRID_SIZE),
+                        y: Math.floor(Math.random() * GRID_SIZE)
+                    };
+                    attempts++;
+                } while (attempts < 100 && (
+                    gameState.snake.some(s => s.x === pos.x && s.y === pos.y) ||
+                    gameState.food.some(f => f.x === pos.x && f.y === pos.y) ||
+                    gameState.obstacles.some(o => o.x === pos.x && o.y === pos.y) ||
+                    gameState.mazeWalls.some(w => w.x === pos.x && w.y === pos.y)
+                ));
+
+                if (attempts < 100) {
+                    gameState.food.push(pos);
+                }
+            }
+        }
+
+        function spawnObstacle() {
+            if (gameState.gameMode !== 'survival') return;
+
+            let attempts = 0;
+            let pos;
+
+            do {
+                pos = {
+                    x: Math.floor(Math.random() * GRID_SIZE),
+                    y: Math.floor(Math.random() * GRID_SIZE)
+                };
+                attempts++;
+            } while (attempts < 100 && (
+                gameState.snake.some(s => s.x === pos.x && s.y === pos.y) ||
+                gameState.food.some(f => f.x === pos.x && f.y === pos.y) ||
+                gameState.obstacles.some(o => o.x === pos.x && o.y === pos.y)
+            ));
+
+            if (attempts < 100) {
+                gameState.obstacles.push(pos);
+            }
+        }
+
+        function moveSnake() {
+            if (gameState.isPaused || gameState.isGameOver || gameState.waitingForInput) return;
+
+            gameState.direction = { ...gameState.nextDirection };
+
+            const head = { ...gameState.snake[0] };
+            head.x += gameState.direction.x;
+            head.y += gameState.direction.y;
+
+            // Wall collision / wrapping
+            if (gameState.gameMode === 'zen') {
+                if (head.x < 0) head.x = GRID_SIZE - 1;
+                if (head.x >= GRID_SIZE) head.x = 0;
+                if (head.y < 0) head.y = GRID_SIZE - 1;
+                if (head.y >= GRID_SIZE) head.y = 0;
+            } else {
+                if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Self collision
+            if (gameState.gameMode !== 'zen') {
+                if (gameState.snake.some(s => s.x === head.x && s.y === head.y)) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Obstacle collision
+            if (gameState.obstacles.some(o => o.x === head.x && o.y === head.y)) {
+                gameOver();
+                return;
+            }
+
+            // Maze wall collision
+            if (gameState.mazeWalls.some(w => w.x === head.x && w.y === head.y)) {
+                gameOver();
+                return;
+            }
+
+            gameState.snake.unshift(head);
+
+            // Food collision
+            const foodIndex = gameState.food.findIndex(f => f.x === head.x && f.y === head.y);
+            if (foodIndex !== -1) {
+                const eatenFood = gameState.food.splice(foodIndex, 1)[0];
+
+                // Emit particles
+                emitParticles(
+                    (eatenFood.x + 0.5) * cellSize,
+                    (eatenFood.y + 0.5) * cellSize,
+                    12
+                );
+
+                if (gameState.gameMode !== 'zen') {
+                    gameState.score++;
+
+                    // Track food timestamps for speed eater
+                    gameState.foodEatenTimestamps.push(Date.now());
+
+                    // Track corners
+                    const cornerSize = 3;
+                    if (eatenFood.x < cornerSize && eatenFood.y < cornerSize) gameState.cornersEaten.add('TL');
+                    if (eatenFood.x >= GRID_SIZE - cornerSize && eatenFood.y < cornerSize) gameState.cornersEaten.add('TR');
+                    if (eatenFood.x < cornerSize && eatenFood.y >= GRID_SIZE - cornerSize) gameState.cornersEaten.add('BL');
+                    if (eatenFood.x >= GRID_SIZE - cornerSize && eatenFood.y >= GRID_SIZE - cornerSize) gameState.cornersEaten.add('BR');
+
+                    checkAchievements();
+                }
+
+                // Mode-specific logic
+                if (gameState.gameMode === 'timeattack' && gameState.score >= 20) {
+                    win();
+                    return;
+                }
+
+                if (gameState.gameMode === 'maze' && gameState.score % 10 === 0 && gameState.score > 0) {
+                    gameState.mazeLevel++;
+                    generateMaze();
+                    screenFlash('#00ff00');
+                }
+
+                spawnFood();
+            } else {
+                gameState.snake.pop();
+            }
+
+            updateHUD();
+        }
+
+        function checkAchievements() {
+            const now = Date.now();
+
+            // First Bite - already handled as default
+
+            // Getting Longer
+            if (gameState.snake.length >= 15) {
+                unlockAchievement('getting_longer');
+            }
+
+            // Speed Eater
+            const recentFood = gameState.foodEatenTimestamps.filter(t => now - t < 8000);
+            if (recentFood.length >= 5) {
+                unlockAchievement('speed_eater');
+            }
+
+            // Century Club
+            if (gameState.gameMode === 'classic' && gameState.score >= 100) {
+                unlockAchievement('century_club');
+            }
+
+            // Gluttonous
+            if (['classic', 'survival', 'maze'].includes(gameState.gameMode) && gameState.score >= 50) {
+                unlockAchievement('gluttonous');
+            }
+
+            // Corner Hunter
+            if (gameState.cornersEaten.size >= 4) {
+                unlockAchievement('corner_hunter');
+            }
+
+            // Maze Runner
+            if (gameState.gameMode === 'maze' && gameState.score >= 50) {
+                unlockAchievement('maze_runner');
+            }
+
+            // Untouchable
+            if (gameState.gameMode === 'maze' && gameState.score >= 30) {
+                unlockAchievement('untouchable');
+            }
+        }
+
+        function checkAchievement(id) {
+            if (sessionState.unlockedAchievements.has(id)) return;
+
+            switch (id) {
+                case 'explorer':
+                    if (sessionState.achievementProgress.modesPlayed.size >= 5) {
+                        unlockAchievement('explorer');
+                    }
+                    break;
+                case 'night_owl':
+                    if (sessionState.achievementProgress.gamesPlayed >= 10) {
+                        unlockAchievement('night_owl');
+                    }
+                    break;
+                case 'survivor':
+                    if (gameState.gameMode === 'survival' && gameState.timeElapsed >= 120) {
+                        unlockAchievement('survivor');
+                    }
+                    break;
+                case 'zen_master':
+                    if (gameState.gameMode === 'zen' && gameState.timeElapsed >= 180) {
+                        unlockAchievement('zen_master');
+                    }
+                    break;
+                case 'time_lord':
+                    if (gameState.gameMode === 'timeattack' && gameState.timeElapsed < 45) {
+                        unlockAchievement('time_lord');
+                    }
+                    break;
+                case 'dedicated':
+                    if (sessionState.unlockedAchievements.size >= 10) {
+                        unlockAchievement('dedicated');
+                    }
+                    break;
+            }
+        }
+
+        const newlyUnlockedAchievements = [];
+
+        function unlockAchievement(id) {
+            if (sessionState.unlockedAchievements.has(id)) return;
+
+            sessionState.unlockedAchievements.add(id);
+            const achievement = ACHIEVEMENTS[id];
+            sessionState.unlockedSkins.add(achievement.unlocks);
+
+            newlyUnlockedAchievements.push(id);
+            showToast(achievement.name, SKINS[achievement.unlocks].name);
+
+            // Check for dedicated achievement
+            checkAchievement('dedicated');
+        }
+
+        function showToast(achievementName, skinName) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `
+                <div class="toast-title">Achievement Unlocked: ${achievementName}</div>
+                <div class="toast-skin">New Skin: ${skinName}</div>
+            `;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        function gameOver() {
+            gameState.isGameOver = true;
+            clearInterval(gameLoop);
+            clearInterval(timeLoop);
+            clearInterval(obstacleLoop);
+
+            screenFlash('#ff0000');
+
+            document.getElementById('final-score').textContent = getScoreText();
+            showNewAchievements('new-achievements', 'achievements-list');
+            document.getElementById('gameover-overlay').classList.add('active');
+        }
+
+        function win() {
+            gameState.isGameOver = true;
+            clearInterval(gameLoop);
+            clearInterval(timeLoop);
+
+            checkAchievement('time_lord');
+
+            document.getElementById('win-time').textContent = `Time: ${gameState.timeElapsed}s`;
+            showNewAchievements('win-achievements', 'win-achievements-list');
+            document.getElementById('win-overlay').classList.add('active');
+        }
+
+        function showNewAchievements(containerId, listId) {
+            const container = document.getElementById(containerId);
+            const list = document.getElementById(listId);
+
+            if (newlyUnlockedAchievements.length > 0) {
+                container.style.display = 'block';
+                list.innerHTML = newlyUnlockedAchievements.map(id => {
+                    const a = ACHIEVEMENTS[id];
+                    return `<div class="new-achievement-item">${a.icon} ${a.name} - Unlocked: ${SKINS[a.unlocks].name}</div>`;
+                }).join('');
+                newlyUnlockedAchievements.length = 0;
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
+        function screenFlash(color) {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: ${color};
+                opacity: 0.3;
+                pointer-events: none;
+                z-index: 9999;
+            `;
+            document.body.appendChild(overlay);
+            setTimeout(() => overlay.remove(), 100);
+        }
+
+        function getScoreText() {
+            switch (gameState.gameMode) {
+                case 'classic':
+                case 'maze':
+                    return `Score: ${gameState.score}`;
+                case 'timeattack':
+                    return `Food: ${gameState.score}/20 | Time: ${gameState.timeElapsed}s`;
+                case 'survival':
+                    return `Survived: ${gameState.timeElapsed}s`;
+                case 'zen':
+                    return 'Relaxation Complete';
+                default:
+                    return `Score: ${gameState.score}`;
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('score-display').textContent =
+                gameState.gameMode === 'survival' ? `Obstacles: ${gameState.obstacles.length}` :
+                gameState.gameMode === 'maze' ? `Score: ${gameState.score} | Level: ${gameState.mazeLevel}` :
+                `Score: ${gameState.score}`;
+
+            const modeNames = {
+                classic: 'Classic',
+                timeattack: 'Time Attack',
+                survival: 'Survival',
+                maze: 'Maze',
+                zen: 'Zen'
+            };
+            document.getElementById('mode-display').textContent = `Mode: ${modeNames[gameState.gameMode]}`;
+
+            const timeDisplay = document.getElementById('time-display');
+            if (['timeattack', 'survival', 'zen'].includes(gameState.gameMode)) {
+                timeDisplay.style.display = 'inline';
+                timeDisplay.textContent = `Time: ${gameState.timeElapsed}s`;
+            } else {
+                timeDisplay.style.display = 'none';
+            }
+        }
+
+        // ============== RENDERING ==============
+        function render() {
+            const theme = THEMES[sessionState.selectedTheme];
+            const skin = SKINS[sessionState.selectedSkin];
+
+            // Clear and draw background
+            ctx.fillStyle = theme.background;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Background particles
+            updateBgParticles();
+            drawBgParticles();
+
+            // Grid
+            if (sessionState.settings.showGrid && theme.gridLines) {
+                ctx.strokeStyle = theme.gridLines;
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i <= GRID_SIZE; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * cellSize, 0);
+                    ctx.lineTo(i * cellSize, canvas.height);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * cellSize);
+                    ctx.lineTo(canvas.width, i * cellSize);
+                    ctx.stroke();
+                }
+            }
+
+            // Maze walls
+            ctx.fillStyle = theme.snakeBody;
+            gameState.mazeWalls.forEach(wall => {
+                ctx.fillRect(wall.x * cellSize, wall.y * cellSize, cellSize, cellSize);
+            });
+
+            // Obstacles
+            ctx.fillStyle = '#ff4444';
+            gameState.obstacles.forEach(obs => {
+                ctx.fillRect(obs.x * cellSize + 1, obs.y * cellSize + 1, cellSize - 2, cellSize - 2);
+            });
+
+            // Food
+            gameState.food.forEach((f, i) => {
+                const pulse = 1 + Math.sin(Date.now() / 200 + i) * 0.1;
+                const size = cellSize * 0.8 * pulse;
+                const offset = (cellSize - size) / 2;
+
+                ctx.fillStyle = theme.food;
+                if (theme.glow) {
+                    ctx.shadowColor = theme.food;
+                    ctx.shadowBlur = 10;
+                }
+                ctx.beginPath();
+                ctx.arc(
+                    f.x * cellSize + cellSize / 2,
+                    f.y * cellSize + cellSize / 2,
+                    size / 2,
+                    0, Math.PI * 2
+                );
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+
+            // Snake
+            drawSnake(theme, skin);
+
+            // Particles
+            updateParticles();
+            drawParticles();
+
+            if (!gameState.isGameOver) {
+                requestAnimationFrame(render);
+            }
+        }
+
+        function drawSnake(theme, skin) {
+            const isChonky = skin.effect === 'chonky';
+            const widthMultiplier = isChonky ? 1.3 : 1;
+
+            gameState.snake.forEach((segment, index) => {
+                let color;
+
+                if (skin.effect === 'rainbow') {
+                    const hue = (index * 20 + Date.now() / 20) % 360;
+                    color = `hsl(${hue}, 100%, 50%)`;
+                } else if (skin.effect === 'gradient') {
+                    const t = index / gameState.snake.length;
+                    color = lerpColor(skin.colors[0], skin.colors[1], t);
+                } else if (skin.effect === 'starfield') {
+                    color = skin.colors[index % 2];
+                } else {
+                    color = index === 0 ? skin.colors[0] : skin.colors[1];
+                }
+
+                const size = cellSize * 0.9 * widthMultiplier;
+                const offset = (cellSize - size) / 2;
+
+                ctx.fillStyle = color;
+
+                if (skin.effect === 'glow' || theme.glow) {
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 15;
+                }
+
+                if (skin.effect === 'ghost') {
+                    ctx.globalAlpha = 0.5;
+                }
+
+                // Draw segment
+                const x = segment.x * cellSize + offset;
+                const y = segment.y * cellSize + offset;
+
+                if (theme.name === 'Nature') {
+                    ctx.beginPath();
+                    ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(x, y, size, size);
+                }
+
+                // Sparkle effect
+                if (skin.effect === 'sparkle' && Math.random() < 0.1) {
+                    emitParticles(x + size/2, y + size/2, 1);
+                }
+
+                // Starfield effect - draw mini stars
+                if (skin.effect === 'starfield' && index > 0) {
+                    ctx.fillStyle = '#ffffff';
+                    for (let i = 0; i < 3; i++) {
+                        const sx = x + Math.random() * size;
+                        const sy = y + Math.random() * size;
+                        ctx.fillRect(sx, sy, 1, 1);
+                    }
+                }
+
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw eyes on head
+            const head = gameState.snake[0];
+            ctx.fillStyle = '#000000';
+            const eyeSize = cellSize * 0.15;
+            const headX = head.x * cellSize + cellSize / 2;
+            const headY = head.y * cellSize + cellSize / 2;
+
+            // Position eyes based on direction
+            const eyeOffset = cellSize * 0.2;
+            let eye1, eye2;
+
+            if (gameState.direction.x === 1) { // Right
+                eye1 = { x: headX + eyeOffset, y: headY - eyeOffset };
+                eye2 = { x: headX + eyeOffset, y: headY + eyeOffset };
+            } else if (gameState.direction.x === -1) { // Left
+                eye1 = { x: headX - eyeOffset, y: headY - eyeOffset };
+                eye2 = { x: headX - eyeOffset, y: headY + eyeOffset };
+            } else if (gameState.direction.y === -1) { // Up
+                eye1 = { x: headX - eyeOffset, y: headY - eyeOffset };
+                eye2 = { x: headX + eyeOffset, y: headY - eyeOffset };
+            } else { // Down
+                eye1 = { x: headX - eyeOffset, y: headY + eyeOffset };
+                eye2 = { x: headX + eyeOffset, y: headY + eyeOffset };
+            }
+
+            ctx.beginPath();
+            ctx.arc(eye1.x, eye1.y, eyeSize, 0, Math.PI * 2);
+            ctx.arc(eye2.x, eye2.y, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function lerpColor(color1, color2, t) {
+            // Simple lerp for hex colors
+            const c1 = hexToRgb(color1);
+            const c2 = hexToRgb(color2);
+            if (!c1 || !c2) return color1;
+
+            const r = Math.round(c1.r + (c2.r - c1.r) * t);
+            const g = Math.round(c1.g + (c2.g - c1.g) * t);
+            const b = Math.round(c1.b + (c2.b - c1.b) * t);
+
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        // ============== UI ==============
+        function applyTheme() {
+            const theme = THEMES[sessionState.selectedTheme];
+            document.documentElement.style.setProperty('--bg-color', theme.background);
+            document.documentElement.style.setProperty('--text-color', theme.textColor);
+            document.documentElement.style.setProperty('--accent-color', theme.accentColor);
+            document.body.style.background = theme.background;
+        }
+
+        function showScreen(screen) {
+            document.getElementById('menu-screen').classList.toggle('hidden', screen !== 'menu');
+            document.getElementById('game-screen').classList.toggle('active', screen === 'game');
+            gameState.currentScreen = screen;
+        }
+
+        function startGame(mode) {
+            gameState.gameMode = mode;
+            showScreen('game');
+            resizeCanvas();
+            initGame();
+            initBgParticles();
+
+            const speed = SPEEDS[sessionState.settings.speed];
+            gameLoop = setInterval(moveSnake, speed);
+
+            if (['timeattack', 'survival', 'zen'].includes(mode)) {
+                timeLoop = setInterval(() => {
+                    if (!gameState.isPaused && !gameState.isGameOver && !gameState.waitingForInput) {
+                        gameState.timeElapsed++;
+                        updateHUD();
+                        checkAchievement('survivor');
+                        checkAchievement('zen_master');
+                    }
+                }, 1000);
+            }
+
+            if (mode === 'survival') {
+                obstacleLoop = setInterval(() => {
+                    if (!gameState.isPaused && !gameState.isGameOver && !gameState.waitingForInput) {
+                        spawnObstacle();
+                    }
+                }, 6000);
+            }
+
+            render();
+        }
+
+        function togglePause() {
+            if (gameState.isGameOver) return;
+            gameState.isPaused = !gameState.isPaused;
+            document.getElementById('pause-overlay').classList.toggle('active', gameState.isPaused);
+        }
+
+        function returnToMenu() {
+            clearInterval(gameLoop);
+            clearInterval(timeLoop);
+            clearInterval(obstacleLoop);
+            document.getElementById('pause-overlay').classList.remove('active');
+            document.getElementById('gameover-overlay').classList.remove('active');
+            document.getElementById('win-overlay').classList.remove('active');
+            showScreen('menu');
+        }
+
+        function renderSkinsGrid() {
+            const grid = document.getElementById('skins-grid');
+            grid.innerHTML = '';
+
+            Object.entries(SKINS).forEach(([id, skin]) => {
+                const isUnlocked = sessionState.unlockedSkins.has(id);
+                const isSelected = sessionState.selectedSkin === id;
+
+                const item = document.createElement('div');
+                item.className = `skin-item ${isUnlocked ? '' : 'locked'} ${isSelected ? 'selected' : ''}`;
+                item.dataset.skin = id;
+
+                // Find which achievement unlocks this skin
+                const achievement = Object.values(ACHIEVEMENTS).find(a => a.unlocks === id);
+
+                const tooltipText = isUnlocked
+                    ? `Click to select`
+                    : `🔓 ${achievement?.name || 'Unknown'}: ${achievement?.description || ''}`;
+
+                item.innerHTML = `
+                    <div class="skin-tooltip">${tooltipText}</div>
+                    <div class="skin-preview" style="background: ${skin.colors[0] === 'rainbow' ? 'linear-gradient(90deg, red, orange, yellow, green, blue, purple)' : skin.colors[1]}">
+                        <div style="width: 60%; height: 20%; background: ${skin.colors[0] === 'rainbow' ? 'linear-gradient(90deg, red, orange, yellow, green, blue, purple)' : skin.colors[0]}; border-radius: 2px;"></div>
+                    </div>
+                    <div class="skin-name">${skin.name}</div>
+                `;
+
+                if (isUnlocked) {
+                    item.onclick = () => selectSkin(id);
+                }
+
+                grid.appendChild(item);
+            });
+        }
+
+        function selectSkin(id) {
+            if (!sessionState.unlockedSkins.has(id)) return;
+            sessionState.selectedSkin = id;
+            renderSkinsGrid();
+        }
+
+        function renderAchievements() {
+            const container = document.getElementById('achievements-container');
+            container.innerHTML = '';
+
+            Object.entries(ACHIEVEMENTS).forEach(([id, achievement]) => {
+                const isUnlocked = sessionState.unlockedAchievements.has(id);
+
+                const item = document.createElement('div');
+                item.className = `achievement-item ${isUnlocked ? 'unlocked' : ''}`;
+
+                let progressHtml = '';
+                if (achievement.trackable && !isUnlocked) {
+                    let current = 0;
+                    if (id === 'explorer') current = sessionState.achievementProgress.modesPlayed.size;
+                    if (id === 'night_owl') current = sessionState.achievementProgress.gamesPlayed;
+                    if (id === 'dedicated') current = sessionState.unlockedAchievements.size;
+
+                    const percent = (current / achievement.max) * 100;
+                    progressHtml = `
+                        <div class="achievement-progress">
+                            <div class="achievement-progress-bar" style="width: ${percent}%"></div>
+                        </div>
+                        <div style="font-size: 0.75rem; margin-top: 4px;">${current}/${achievement.max}</div>
+                    `;
+                }
+
+                item.innerHTML = `
+                    <div class="achievement-icon">${achievement.icon}</div>
+                    <div class="achievement-info">
+                        <div class="achievement-name">${achievement.name}</div>
+                        <div class="achievement-desc">${achievement.requirement}</div>
+                        ${progressHtml}
+                        ${isUnlocked ? `<div style="color: var(--accent-color); font-size: 0.8rem; margin-top: 5px;">Unlocked: ${SKINS[achievement.unlocks].name}</div>` : ''}
+                    </div>
+                `;
+
+                container.appendChild(item);
+            });
+        }
+
+        // ============== INPUT HANDLING ==============
+        document.addEventListener('keydown', (e) => {
+            if (gameState.currentScreen !== 'game') return;
+
+            const key = e.key.toLowerCase();
+
+            // Direction controls
+            let moved = false;
+            if ((key === 'arrowup' || key === 'w') && gameState.direction.y !== 1) {
+                gameState.nextDirection = { x: 0, y: -1 };
+                moved = true;
+            } else if ((key === 'arrowdown' || key === 's') && gameState.direction.y !== -1) {
+                gameState.nextDirection = { x: 0, y: 1 };
+                moved = true;
+            } else if ((key === 'arrowleft' || key === 'a') && gameState.direction.x !== 1) {
+                gameState.nextDirection = { x: -1, y: 0 };
+                moved = true;
+            } else if ((key === 'arrowright' || key === 'd') && gameState.direction.x !== -1) {
+                gameState.nextDirection = { x: 1, y: 0 };
+                moved = true;
+            }
+
+            if (moved && gameState.waitingForInput) {
+                gameState.waitingForInput = false;
+                document.getElementById('game-hint').textContent = 'Space to Pause | ESC for Menu';
+            }
+
+            // Other controls
+            if (key === ' ') {
+                e.preventDefault();
+                togglePause();
+            } else if (key === 'escape') {
+                returnToMenu();
+            } else if (key === 'enter' && gameState.isGameOver) {
+                document.getElementById('gameover-overlay').classList.remove('active');
+                document.getElementById('win-overlay').classList.remove('active');
+                startGame(gameState.gameMode);
+            }
+        });
+
+        // Touch controls
+        let touchStartX, touchStartY;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            if (!touchStartX || !touchStartY) return;
+
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const dx = touchEndX - touchStartX;
+            const dy = touchEndY - touchStartY;
+
+            const minSwipe = 30;
+
+            if (Math.abs(dx) < minSwipe && Math.abs(dy) < minSwipe) {
+                // Tap - toggle pause
+                togglePause();
+            } else if (Math.abs(dx) > Math.abs(dy)) {
+                // Horizontal swipe
+                let swiped = false;
+                if (dx > 0 && gameState.direction.x !== -1) {
+                    gameState.nextDirection = { x: 1, y: 0 };
+                    swiped = true;
+                } else if (dx < 0 && gameState.direction.x !== 1) {
+                    gameState.nextDirection = { x: -1, y: 0 };
+                    swiped = true;
+                }
+                if (swiped && gameState.waitingForInput) {
+                    gameState.waitingForInput = false;
+                    document.getElementById('game-hint').textContent = 'Tap to Pause | Swipe to Move';
+                }
+            } else {
+                // Vertical swipe
+                let swiped = false;
+                if (dy > 0 && gameState.direction.y !== -1) {
+                    gameState.nextDirection = { x: 0, y: 1 };
+                    swiped = true;
+                } else if (dy < 0 && gameState.direction.y !== 1) {
+                    gameState.nextDirection = { x: 0, y: -1 };
+                    swiped = true;
+                }
+                if (swiped && gameState.waitingForInput) {
+                    gameState.waitingForInput = false;
+                    document.getElementById('game-hint').textContent = 'Tap to Pause | Swipe to Move';
+                }
+            }
+
+            touchStartX = null;
+            touchStartY = null;
+        });
+
+        // ============== EVENT LISTENERS ==============
+        // Mode buttons
+        document.querySelectorAll('.menu-btn[data-mode]').forEach(btn => {
+            btn.addEventListener('click', () => startGame(btn.dataset.mode));
+        });
+
+        // Settings
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').classList.add('active');
+        });
+
+        document.getElementById('theme-select').addEventListener('change', (e) => {
+            sessionState.selectedTheme = e.target.value;
+            applyTheme();
+        });
+
+        document.getElementById('speed-select').addEventListener('change', (e) => {
+            sessionState.settings.speed = e.target.value;
+        });
+
+        document.getElementById('grid-toggle').addEventListener('change', (e) => {
+            sessionState.settings.showGrid = e.target.checked;
+        });
+
+        // Skins
+        document.getElementById('skins-btn').addEventListener('click', () => {
+            renderSkinsGrid();
+            document.getElementById('skins-modal').classList.add('active');
+        });
+
+        // Achievements
+        document.getElementById('achievements-btn').addEventListener('click', () => {
+            renderAchievements();
+            document.getElementById('achievements-modal').classList.add('active');
+        });
+
+        // Modal close buttons
+        document.querySelectorAll('.close-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.modal').classList.remove('active');
+            });
+        });
+
+        // Click outside modal to close
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+
+        // Game control buttons
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('pause-overlay').classList.remove('active');
+            startGame(gameState.gameMode);
+        });
+        document.getElementById('menu-btn').addEventListener('click', returnToMenu);
+        document.getElementById('playagain-btn').addEventListener('click', () => {
+            document.getElementById('gameover-overlay').classList.remove('active');
+            startGame(gameState.gameMode);
+        });
+        document.getElementById('gameover-menu-btn').addEventListener('click', returnToMenu);
+        document.getElementById('win-playagain-btn').addEventListener('click', () => {
+            document.getElementById('win-overlay').classList.remove('active');
+            startGame(gameState.gameMode);
+        });
+        document.getElementById('win-menu-btn').addEventListener('click', returnToMenu);
+
+        // ============== INIT ==============
+        window.addEventListener('resize', () => {
+            if (gameState.currentScreen === 'game') {
+                resizeCanvas();
+            }
+        });
+
+        applyTheme();
+        resizeCanvas();
+    </script>
+</body>
+</html>
