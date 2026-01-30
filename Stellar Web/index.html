@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Web - Emergent Network Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #canvas {
+            display: block;
+            background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+        }
+
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 25, 0.95);
+            border-bottom: 1px solid rgba(100, 100, 150, 0.3);
+            padding: 15px 20px;
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+
+        .control-panel.collapsed {
+            transform: translateY(calc(-100% + 40px));
+        }
+
+        .panel-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .panel-header {
+            min-width: 150px;
+        }
+
+        .panel-toggle {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 30px;
+            background: rgba(15, 15, 25, 0.95);
+            border: 1px solid rgba(100, 100, 150, 0.3);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #8888cc;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .panel-toggle:hover {
+            background: rgba(30, 30, 50, 0.95);
+        }
+
+        .panel-toggle::after {
+            content: '▲';
+            transition: transform 0.3s;
+        }
+
+        .control-panel.collapsed .panel-toggle::after {
+            transform: rotate(180deg);
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            margin-bottom: 5px;
+            color: #aaaadd;
+            text-shadow: 0 0 10px rgba(150, 150, 220, 0.5);
+        }
+
+        .subtitle {
+            font-size: 0.75rem;
+            color: #666688;
+            margin-bottom: 20px;
+        }
+
+        .control-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .control-group {
+            min-width: 140px;
+            flex: 1;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+
+        .control-label span:first-child {
+            color: #9999bb;
+        }
+
+        .control-value {
+            color: #6688cc;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(60, 60, 100, 0.4);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #6688cc, #4466aa);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(100, 130, 200, 0.5);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, #6688cc, #4466aa);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(100, 130, 200, 0.5);
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(100, 100, 150, 0.4), transparent);
+            margin: 20px 0;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            background: rgba(30, 30, 50, 0.5);
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 200px;
+        }
+
+        .stats-title {
+            font-size: 0.75rem;
+            color: #8888aa;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+        }
+
+        .stat-label {
+            color: #7777aa;
+        }
+
+        .stat-value {
+            color: #88aadd;
+            font-family: monospace;
+        }
+
+        /* Options Section */
+        .options-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 160px;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid rgba(100, 100, 150, 0.4);
+            background: rgba(40, 40, 70, 0.5);
+            color: #9999cc;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: rgba(60, 60, 100, 0.6);
+            border-color: rgba(100, 130, 200, 0.6);
+            color: #aabbee;
+        }
+
+        .btn.active {
+            background: rgba(80, 100, 150, 0.5);
+            border-color: #6688cc;
+        }
+
+        /* Mouse Interaction Toggle */
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .toggle-label {
+            font-size: 0.8rem;
+            color: #9999bb;
+            white-space: nowrap;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: rgba(60, 60, 100, 0.4);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle.active {
+            background: rgba(80, 120, 180, 0.6);
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: #8899cc;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle.active::after {
+            transform: translateX(20px);
+            background: #aaccff;
+        }
+
+        /* FPS Counter */
+        .fps-counter {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            color: rgba(100, 150, 200, 0.6);
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="fps-counter" id="fps">FPS: 60</div>
+
+    <div class="control-panel" id="controlPanel">
+        <div class="panel-toggle" id="panelToggle"></div>
+
+        <div class="panel-content">
+            <div class="panel-header">
+                <h1>Stellar Web</h1>
+                <p class="subtitle">Emergent Network Visualization</p>
+            </div>
+
+            <div class="stats-panel">
+                <div class="stats-title">Network Statistics</div>
+                <div class="stat-row">
+                    <span class="stat-label">Total Edges</span>
+                    <span class="stat-value" id="statEdges">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Connections</span>
+                    <span class="stat-value" id="statAvgConn">0.0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Network Density</span>
+                    <span class="stat-value" id="statDensity">0.0%</span>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Node Count</span>
+                        <span class="control-value" id="nodeCountValue">100</span>
+                    </div>
+                    <input type="range" id="nodeCount" min="10" max="300" value="100">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Connectivity Radius</span>
+                        <span class="control-value" id="connectivityRadiusValue">120</span>
+                    </div>
+                    <input type="range" id="connectivityRadius" min="20" max="300" value="120">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Node Speed</span>
+                        <span class="control-value" id="nodeSpeedValue">1.0</span>
+                    </div>
+                    <input type="range" id="nodeSpeed" min="0.1" max="3" step="0.1" value="1">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Node Size</span>
+                        <span class="control-value" id="nodeSizeValue">4</span>
+                    </div>
+                    <input type="range" id="nodeSize" min="1" max="10" value="4">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Edge Thickness</span>
+                        <span class="control-value" id="edgeThicknessValue">1.5</span>
+                    </div>
+                    <input type="range" id="edgeThickness" min="0.5" max="4" step="0.1" value="1.5">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Edge Opacity</span>
+                        <span class="control-value" id="edgeOpacityValue">0.6</span>
+                    </div>
+                    <input type="range" id="edgeOpacity" min="0.1" max="1" step="0.05" value="0.6">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Mouse Power</span>
+                        <span class="control-value" id="mousePowerValue">0.5</span>
+                    </div>
+                    <input type="range" id="mousePower" min="0.1" max="2" step="0.1" value="0.5">
+                </div>
+            </div>
+
+            <div class="options-section">
+                <div class="toggle-group">
+                    <span class="toggle-label">Mouse Attraction</span>
+                    <div class="toggle" id="mouseToggle"></div>
+                </div>
+
+                <div class="toggle-group">
+                    <span class="toggle-label">Repel Mode</span>
+                    <div class="toggle" id="repelToggle"></div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn active" id="playPauseBtn">Pause</button>
+                    <button class="btn" id="resetBtn">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Configuration
+        const config = {
+            nodeCount: 100,
+            connectivityRadius: 120,
+            nodeSpeed: 1,
+            nodeSize: 4,
+            edgeThickness: 1.5,
+            edgeOpacity: 0.6,
+            mousePower: 0.5,
+            mouseAttraction: false,
+            repelMode: false,
+            isPaused: false
+        };
+
+        // State
+        let nodes = [];
+        let mouse = { x: null, y: null };
+        let animationId = null;
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 60;
+
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // Node class
+        class Node {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.z = Math.random() * 1000; // Depth: 0 (far) to 1000 (close)
+
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (0.2 + Math.random() * 0.5) * config.nodeSpeed;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.vz = (Math.random() - 0.5) * 0.5 * config.nodeSpeed;
+            }
+
+            update() {
+                if (config.isPaused) return;
+
+                // Mouse interaction
+                if (config.mouseAttraction && mouse.x !== null) {
+                    const dx = mouse.x - this.x;
+                    const dy = mouse.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 200 && dist > 0) {
+                        const force = (200 - dist) / 200 * config.mousePower;
+                        const direction = config.repelMode ? -1 : 1;
+                        this.vx += (dx / dist) * force * direction;
+                        this.vy += (dy / dist) * force * direction;
+                    }
+                }
+
+                // Apply velocity with speed modifier
+                this.x += this.vx * config.nodeSpeed;
+                this.y += this.vy * config.nodeSpeed;
+                this.z += this.vz * config.nodeSpeed;
+
+                // Damping
+                this.vx *= 0.99;
+                this.vy *= 0.99;
+                this.vz *= 0.99;
+
+                // Maintain minimum velocity
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed < 0.2) {
+                    const angle = Math.random() * Math.PI * 2;
+                    this.vx = Math.cos(angle) * 0.3;
+                    this.vy = Math.sin(angle) * 0.3;
+                }
+
+                // Boundary wrapping
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+
+                // Z boundary bounce
+                if (this.z < 0 || this.z > 1000) {
+                    this.vz *= -1;
+                    this.z = Math.max(0, Math.min(1000, this.z));
+                }
+            }
+
+            getDepthScale() {
+                return 0.3 + (this.z / 1000) * 0.7; // 0.3 to 1.0
+            }
+
+            draw() {
+                const scale = this.getDepthScale();
+                const size = config.nodeSize * scale;
+                const opacity = 0.4 + scale * 0.6;
+
+                // Glow effect
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, size * 3);
+                gradient.addColorStop(0, `rgba(150, 180, 255, ${opacity})`);
+                gradient.addColorStop(0.3, `rgba(100, 140, 220, ${opacity * 0.5})`);
+                gradient.addColorStop(1, 'rgba(100, 140, 220, 0)');
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, size * 3, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // Core
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(200, 220, 255, ${opacity})`;
+                ctx.fill();
+            }
+        }
+
+        // Initialize nodes
+        function initNodes() {
+            nodes = [];
+            for (let i = 0; i < config.nodeCount; i++) {
+                nodes.push(new Node());
+            }
+        }
+
+        // Update node count
+        function updateNodeCount(newCount) {
+            while (nodes.length < newCount) {
+                nodes.push(new Node());
+            }
+            while (nodes.length > newCount) {
+                nodes.pop();
+            }
+        }
+
+        // Calculate 3D distance
+        function getDistance(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dz = (a.z - b.z) * 0.3; // Reduce z influence
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        // Draw edges and calculate stats
+        function drawEdges() {
+            let edgeCount = 0;
+            const connections = new Array(nodes.length).fill(0);
+
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const dist = getDistance(nodes[i], nodes[j]);
+
+                    if (dist < config.connectivityRadius) {
+                        edgeCount++;
+                        connections[i]++;
+                        connections[j]++;
+
+                        // Calculate edge properties based on distance
+                        const proximity = 1 - (dist / config.connectivityRadius);
+                        const avgDepth = (nodes[i].getDepthScale() + nodes[j].getDepthScale()) / 2;
+
+                        const thickness = config.edgeThickness * proximity * avgDepth;
+                        const opacity = config.edgeOpacity * proximity * avgDepth;
+
+                        // Color gradient based on proximity
+                        const r = Math.floor(80 + proximity * 70);
+                        const g = Math.floor(100 + proximity * 80);
+                        const b = Math.floor(180 + proximity * 50);
+
+                        ctx.beginPath();
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.lineTo(nodes[j].x, nodes[j].y);
+                        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                        ctx.lineWidth = thickness;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Update stats
+            const avgConnections = nodes.length > 0 ? connections.reduce((a, b) => a + b, 0) / nodes.length : 0;
+            const maxPossibleEdges = (nodes.length * (nodes.length - 1)) / 2;
+            const density = maxPossibleEdges > 0 ? (edgeCount / maxPossibleEdges) * 100 : 0;
+
+            document.getElementById('statEdges').textContent = edgeCount;
+            document.getElementById('statAvgConn').textContent = avgConnections.toFixed(1);
+            document.getElementById('statDensity').textContent = density.toFixed(1) + '%';
+        }
+
+        // Main animation loop
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+
+            // FPS calculation
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastTime = currentTime;
+                document.getElementById('fps').textContent = `FPS: ${fps}`;
+            }
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw edges first (behind nodes)
+            drawEdges();
+
+            // Sort nodes by depth for proper rendering
+            nodes.sort((a, b) => a.z - b.z);
+
+            // Update and draw nodes
+            for (const node of nodes) {
+                node.update();
+                node.draw();
+            }
+        }
+
+        // Event listeners
+        window.addEventListener('resize', resizeCanvas);
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        // Control panel toggle
+        document.getElementById('panelToggle').addEventListener('click', () => {
+            document.getElementById('controlPanel').classList.toggle('collapsed');
+        });
+
+        // Slider controls
+        const sliders = {
+            nodeCount: { element: 'nodeCount', display: 'nodeCountValue', config: 'nodeCount', isInt: true },
+            connectivityRadius: { element: 'connectivityRadius', display: 'connectivityRadiusValue', config: 'connectivityRadius', isInt: true },
+            nodeSpeed: { element: 'nodeSpeed', display: 'nodeSpeedValue', config: 'nodeSpeed', isInt: false },
+            nodeSize: { element: 'nodeSize', display: 'nodeSizeValue', config: 'nodeSize', isInt: true },
+            edgeThickness: { element: 'edgeThickness', display: 'edgeThicknessValue', config: 'edgeThickness', isInt: false },
+            edgeOpacity: { element: 'edgeOpacity', display: 'edgeOpacityValue', config: 'edgeOpacity', isInt: false },
+            mousePower: { element: 'mousePower', display: 'mousePowerValue', config: 'mousePower', isInt: false }
+        };
+
+        for (const [key, slider] of Object.entries(sliders)) {
+            const element = document.getElementById(slider.element);
+            element.addEventListener('input', (e) => {
+                const value = slider.isInt ? parseInt(e.target.value) : parseFloat(e.target.value);
+                config[slider.config] = value;
+                document.getElementById(slider.display).textContent = slider.isInt ? value : value.toFixed(1);
+
+                if (key === 'nodeCount') {
+                    updateNodeCount(value);
+                }
+            });
+        }
+
+        // Toggle buttons
+        document.getElementById('mouseToggle').addEventListener('click', function() {
+            config.mouseAttraction = !config.mouseAttraction;
+            this.classList.toggle('active');
+        });
+
+        document.getElementById('repelToggle').addEventListener('click', function() {
+            config.repelMode = !config.repelMode;
+            this.classList.toggle('active');
+        });
+
+        // Play/Pause button
+        document.getElementById('playPauseBtn').addEventListener('click', function() {
+            config.isPaused = !config.isPaused;
+            this.textContent = config.isPaused ? 'Play' : 'Pause';
+            this.classList.toggle('active', !config.isPaused);
+        });
+
+        // Reset button
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            initNodes();
+        });
+
+        // Initialize
+        resizeCanvas();
+        initNodes();
+        animate();
+    </script>
+</body>
+</html>
