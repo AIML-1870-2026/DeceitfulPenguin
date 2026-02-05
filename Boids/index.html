@@ -1,0 +1,2473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boids Flocking Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #stats {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: monospace;
+            z-index: 100;
+            display: flex;
+            gap: 20px;
+        }
+
+        #stats span {
+            color: #888;
+        }
+
+        #stats strong {
+            color: #fff;
+        }
+
+        #panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            max-height: calc(100vh - 20px);
+            background: rgba(20, 20, 25, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            color: #fff;
+            z-index: 100;
+            overflow-y: auto;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #panel.hidden {
+            transform: translateX(320px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #panel h3 {
+            font-size: 13px;
+            color: #888;
+            margin: 15px 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .control-group label span.value {
+            color: #4a9eff;
+            font-family: monospace;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4a9eff;
+            cursor: pointer;
+        }
+
+        .control-group select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .control-group select option {
+            background: #1a1a1f;
+            color: #fff;
+        }
+
+        .control-group input[type="color"] {
+            width: 50px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .control-group.checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-group.checkbox input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .control-group.checkbox label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #4a9eff;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-top: 5px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #3a8eef;
+        }
+
+        button.danger {
+            background: #ff4a4a;
+        }
+
+        button.danger:hover {
+            background: #ef3a3a;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .color-row label {
+            flex: 1;
+        }
+
+        #help {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #666;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 100;
+        }
+
+        #help kbd {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+
+        .disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        #pause-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 24px;
+            z-index: 200;
+            display: none;
+        }
+
+        #pause-overlay.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div id="stats">
+        <div><span>FPS:</span> <strong id="fps">0</strong></div>
+        <div><span>Boids:</span> <strong id="boidCount">0</strong></div>
+        <div><span>Avg Speed:</span> <strong id="avgSpeed">0</strong></div>
+        <div><span>Avg Neighbors:</span> <strong id="avgNeighbors">0</strong></div>
+    </div>
+
+    <div id="panel">
+        <h2>Boids Simulation</h2>
+
+        <h3>Preset</h3>
+        <div class="control-group">
+            <select id="preset">
+                <option value="custom">Custom</option>
+                <option value="airplanes" selected>Airplanes</option>
+            </select>
+        </div>
+
+        <div id="3dSettings">
+            <h3>3D Settings</h3>
+            <div class="control-group checkbox">
+                <input type="checkbox" id="mode3D">
+                <label for="mode3D">3D Mode</label>
+            </div>
+            <div class="control-group">
+                <label>Depth Range <span class="value" id="depthRangeVal">500</span></label>
+                <input type="range" id="depthRange" min="200" max="1000" value="500">
+            </div>
+            <div id="cameraControls" style="display: none;">
+                <div class="control-group">
+                    <label>Camera Speed <span class="value" id="cameraSpeedVal">10</span></label>
+                    <input type="range" id="cameraSpeed" min="2" max="30" value="10">
+                </div>
+                <div>
+                    <button id="resetCamera">Reset Camera</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="simulationSettings">
+            <h3>Simulation</h3>
+            <div class="control-group">
+                <label>Boid Count <span class="value" id="boidCountVal">50</span></label>
+                <input type="range" id="boidCountSlider" min="10" max="500" value="50">
+            </div>
+            <div class="control-group">
+                <label>Separation <span class="value" id="separationVal">1.5</span></label>
+                <input type="range" id="separation" min="0" max="5" step="0.1" value="1.5">
+            </div>
+            <div class="control-group">
+                <label>Alignment <span class="value" id="alignmentVal">1.0</span></label>
+                <input type="range" id="alignment" min="0" max="5" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Cohesion <span class="value" id="cohesionVal">1.0</span></label>
+                <input type="range" id="cohesion" min="0" max="5" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <label>Neighbor Radius <span class="value" id="neighborRadiusVal">50</span></label>
+                <input type="range" id="neighborRadius" min="20" max="200" value="50">
+            </div>
+            <div class="control-group">
+                <label>Max Speed <span class="value" id="maxSpeedVal">4</span></label>
+                <input type="range" id="maxSpeed" min="1" max="10" step="0.5" value="4">
+            </div>
+
+            <h3>Mouse Interaction</h3>
+            <div class="control-group">
+                <select id="mouseMode">
+                    <option value="none">None</option>
+                    <option value="attract">Attract / Lead</option>
+                    <option value="repel">Repel</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Mouse Radius <span class="value" id="mouseRadiusVal">100</span></label>
+                <input type="range" id="mouseRadius" min="50" max="300" value="100">
+            </div>
+            <div class="control-group">
+                <label>Mouse Strength <span class="value" id="mouseStrengthVal">2.0</span></label>
+                <input type="range" id="mouseStrength" min="0" max="5" step="0.1" value="2.0">
+            </div>
+
+            <h3>Predator</h3>
+            <div class="control-group checkbox">
+                <input type="checkbox" id="predatorEnabled">
+                <label for="predatorEnabled">Enable Predator</label>
+            </div>
+            <div class="control-group">
+                <label>Predator Count <span class="value" id="predatorCountVal">1</span></label>
+                <input type="range" id="predatorCount" min="1" max="5" value="1">
+            </div>
+            <div class="control-group">
+                <label>Predator Speed <span class="value" id="predatorSpeedVal">115</span>%</label>
+                <input type="range" id="predatorSpeed" min="100" max="150" value="115">
+            </div>
+            <div class="control-group">
+                <label>Aggression <span class="value" id="predatorAggressionVal">2.0</span></label>
+                <input type="range" id="predatorAggression" min="0" max="5" step="0.1" value="2.0">
+            </div>
+            <div class="control-group">
+                <label>Kill Radius <span class="value" id="killRadiusVal">10</span></label>
+                <input type="range" id="killRadius" min="5" max="20" value="10">
+            </div>
+            <div class="control-group checkbox">
+                <input type="checkbox" id="respawnPrey" checked>
+                <label for="respawnPrey">Respawn Caught Prey</label>
+            </div>
+
+            <h3>Walls</h3>
+            <div class="control-group checkbox">
+                <input type="checkbox" id="drawMode">
+                <label for="drawMode">Draw Mode (click & drag)</label>
+            </div>
+            <div class="control-group">
+                <label>Wall Thickness <span class="value" id="wallThicknessVal">8</span></label>
+                <input type="range" id="wallThickness" min="2" max="20" value="8">
+            </div>
+            <div class="control-group color-row">
+                <label>Wall Color</label>
+                <input type="color" id="wallColor" value="#666666">
+            </div>
+            <div class="control-group">
+                <label>Wall Opacity <span class="value" id="wallOpacityVal">0.8</span></label>
+                <input type="range" id="wallOpacity" min="0.2" max="1" step="0.1" value="0.8">
+            </div>
+            <div>
+                <button id="undoWall">Undo Wall</button>
+                <button id="clearWalls" class="danger">Clear All</button>
+            </div>
+
+        </div>
+
+        <div id="cosmeticSettings" class="disabled">
+            <h3>Aesthetics</h3>
+            <div class="control-group color-row">
+                <label>Boid Color</label>
+                <input type="color" id="boidColor" value="#ffffff">
+            </div>
+            <div class="control-group color-row">
+                <label>Background</label>
+                <input type="color" id="bgColor" value="#0a0a0a">
+            </div>
+            <div class="control-group">
+                <label>Boid Size <span class="value" id="boidSizeVal">10</span></label>
+                <input type="range" id="boidSize" min="4" max="20" value="10">
+            </div>
+            <div class="control-group checkbox">
+                <input type="checkbox" id="showTrails">
+                <label for="showTrails">Show Trails</label>
+            </div>
+            <div class="control-group">
+                <label>Trail Length <span class="value" id="trailLengthVal">20</span></label>
+                <input type="range" id="trailLength" min="5" max="50" value="20">
+            </div>
+            <div class="control-group">
+                <label>Trail Opacity <span class="value" id="trailOpacityVal">0.3</span></label>
+                <input type="range" id="trailOpacity" min="0.1" max="1" step="0.1" value="0.3">
+            </div>
+            <div class="control-group">
+                <label>Color Mode</label>
+                <select id="colorMode">
+                    <option value="static">Static</option>
+                    <option value="velocity">Velocity</option>
+                    <option value="direction">Direction</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="airplaneSettings">
+            <h3>Airplane Settings</h3>
+            <div class="control-group">
+                <label>Time of Day</label>
+                <select id="timeOfDay">
+                    <option value="midday">Midday</option>
+                    <option value="dawn">Dawn</option>
+                    <option value="dusk">Dusk</option>
+                    <option value="night">Night</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div id="help">
+        <kbd>H</kbd> Toggle Panel &nbsp;
+        <kbd>Space</kbd> Pause &nbsp;
+        <kbd>R</kbd> Reset
+        <span id="help3D" style="display: none;">
+            &nbsp;| 3D: <kbd>WASD</kbd> Move &nbsp;
+            <kbd>Q/E</kbd> Up/Down &nbsp;
+            <kbd>Drag</kbd> Look &nbsp;
+            <kbd>C</kbd> Reset Camera
+        </span>
+    </div>
+
+    <div id="pause-overlay">PAUSED</div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Settings
+        const settings = {
+            boidCount: 50,
+            separation: 1.5,
+            alignment: 1.0,
+            cohesion: 1.0,
+            neighborRadius: 50,
+            maxSpeed: 4,
+            mouseMode: 'none',
+            mouseRadius: 100,
+            mouseStrength: 2.0,
+            predatorEnabled: false,
+            predatorCount: 1,
+            predatorSpeed: 115,
+            predatorAggression: 2.0,
+            killRadius: 10,
+            respawnPrey: true,
+            drawMode: false,
+            wallThickness: 8,
+            wallColor: '#666666',
+            wallOpacity: 0.8,
+            boidColor: '#ffffff',
+            bgColor: '#0a0a0a',
+            boidSize: 10,
+            showTrails: false,
+            trailLength: 20,
+            trailOpacity: 0.3,
+            colorMode: 'static',
+            preset: 'airplanes',
+            timeOfDay: 'midday',
+            mode3D: false,
+            depthRange: 500
+        };
+
+        // State
+        let boids = [];
+        let predators = [];
+        let walls = [];
+        let currentWall = null;
+        let mousePos = { x: 0, y: 0 };
+        let isMouseOnCanvas = false;
+        let paused = false;
+        let lastTime = 0;
+        let frameCount = 0;
+        let fps = 0;
+        let lastFpsUpdate = 0;
+
+        // Airplane preset state
+        let clouds = [];
+        let sunPos = { x: 0, y: 0 };
+        let sunPos3D = vec3(2000, -1500, 3000);
+
+        // 3D Camera state
+        const camera = {
+            x: 0,           // Camera position offset from center
+            y: 0,
+            z: 0,
+            yaw: 0,         // Horizontal rotation (left/right)
+            pitch: 0,       // Vertical rotation (up/down)
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+            moveSpeed: 10,
+            rotateSpeed: 0.003
+        };
+
+        // Vector utilities
+        function vec(x, y) {
+            return { x, y };
+        }
+
+        function vecAdd(a, b) {
+            return { x: a.x + b.x, y: a.y + b.y };
+        }
+
+        function vecSub(a, b) {
+            return { x: a.x - b.x, y: a.y - b.y };
+        }
+
+        function vecMult(v, s) {
+            return { x: v.x * s, y: v.y * s };
+        }
+
+        function vecDiv(v, s) {
+            return s !== 0 ? { x: v.x / s, y: v.y / s } : { x: 0, y: 0 };
+        }
+
+        function vecMag(v) {
+            return Math.sqrt(v.x * v.x + v.y * v.y);
+        }
+
+        function vecNormalize(v) {
+            const mag = vecMag(v);
+            return mag > 0 ? vecDiv(v, mag) : { x: 0, y: 0 };
+        }
+
+        function vecLimit(v, max) {
+            const mag = vecMag(v);
+            if (mag > max) {
+                return vecMult(vecNormalize(v), max);
+            }
+            return v;
+        }
+
+        function vecDist(a, b) {
+            return vecMag(vecSub(a, b));
+        }
+
+        function vecAngle(v) {
+            return Math.atan2(v.y, v.x);
+        }
+
+        // 3D Vector utilities (separate from 2D to avoid breaking existing code)
+        function vec3(x, y, z) {
+            return { x, y, z };
+        }
+
+        function vec3Add(a, b) {
+            return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+        }
+
+        function vec3Sub(a, b) {
+            return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+        }
+
+        function vec3Mult(v, s) {
+            return { x: v.x * s, y: v.y * s, z: v.z * s };
+        }
+
+        function vec3Div(v, s) {
+            return s !== 0 ? { x: v.x / s, y: v.y / s, z: v.z / s } : { x: 0, y: 0, z: 0 };
+        }
+
+        function vec3Mag(v) {
+            return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+        }
+
+        function vec3Normalize(v) {
+            const mag = vec3Mag(v);
+            return mag > 0 ? vec3Div(v, mag) : { x: 0, y: 0, z: 0 };
+        }
+
+        function vec3Limit(v, max) {
+            const mag = vec3Mag(v);
+            if (mag > max) {
+                return vec3Mult(vec3Normalize(v), max);
+            }
+            return v;
+        }
+
+        function vec3Dist(a, b) {
+            return vec3Mag(vec3Sub(a, b));
+        }
+
+        // Project 3D position to 2D screen coordinates with perspective and camera
+        function project3D(pos3D) {
+            const focalLength = 800;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Translate position relative to camera
+            let px = pos3D.x - centerX - camera.x;
+            let py = pos3D.y - centerY - camera.y;
+            let pz = pos3D.z - camera.z;
+
+            // Apply yaw rotation (around Y axis - left/right looking)
+            const cosYaw = Math.cos(camera.yaw);
+            const sinYaw = Math.sin(camera.yaw);
+            const rotatedX = px * cosYaw - pz * sinYaw;
+            const rotatedZ = px * sinYaw + pz * cosYaw;
+            px = rotatedX;
+            pz = rotatedZ;
+
+            // Apply pitch rotation (around X axis - up/down looking)
+            const cosPitch = Math.cos(camera.pitch);
+            const sinPitch = Math.sin(camera.pitch);
+            const rotatedY = py * cosPitch - pz * sinPitch;
+            const rotatedZ2 = py * sinPitch + pz * cosPitch;
+            py = rotatedY;
+            pz = rotatedZ2;
+
+            // z is depth: 0 = at screen, positive = further away
+            const z = pz + focalLength;
+
+            // Don't render if behind camera
+            if (z < 50) {
+                return { x: -1000, y: -1000, scale: 0, behind: true };
+            }
+
+            const scale = focalLength / z;
+
+            return {
+                x: centerX + px * scale,
+                y: centerY + py * scale,
+                scale: scale,
+                behind: false
+            };
+        }
+
+        // Boid class
+        class Boid {
+            constructor(x, y, isPredator = false, aircraftType = null) {
+                this.pos = vec(x, y);
+                const angle = Math.random() * Math.PI * 2;
+                const speed = settings.maxSpeed * 0.5;
+                this.vel = vec(Math.cos(angle) * speed, Math.sin(angle) * speed);
+                this.acc = vec(0, 0);
+                this.isPredator = isPredator;
+                this.target = null;
+                this.trail = [];
+                this.bankAngle = 0;
+                this.targetBankAngle = 0;
+
+                // 3D mode properties
+                this.pos3D = vec3(x, y, (Math.random() - 0.5) * settings.depthRange);
+                const angleXY = Math.random() * Math.PI * 2;
+                const angleZ = (Math.random() - 0.5) * 0.5;
+                this.vel3D = vec3(
+                    Math.cos(angleXY) * speed,
+                    Math.sin(angleXY) * speed,
+                    Math.sin(angleZ) * speed * 0.3
+                );
+                this.acc3D = vec3(0, 0, 0);
+
+                // Airplane preset properties
+                this.aircraftType = aircraftType || this.assignAircraftType();
+                this.lightPhase = Math.random() * Math.PI * 2;
+                this.contrailPoints = [];
+            }
+
+            assignAircraftType() {
+                const r = Math.random();
+                if (r < 0.25) return 'airliner';
+                if (r < 0.60) return 'ga';
+                if (r < 0.85) return 'fighter';
+                return 'heavy';
+            }
+
+            getAircraftSize() {
+                switch (this.aircraftType) {
+                    case 'airliner': return settings.boidSize * 1.8;
+                    case 'ga': return settings.boidSize * 0.8;
+                    case 'fighter': return settings.boidSize * 1.0;
+                    case 'heavy': return settings.boidSize * 2.2;
+                    default: return settings.boidSize;
+                }
+            }
+
+            update(allBoids, predators, dt = 1) {
+                if (this.isPredator) {
+                    this.updatePredator(allBoids);
+                } else {
+                    this.flock(allBoids, predators);
+                }
+
+                // Mouse interaction
+                if (isMouseOnCanvas && settings.mouseMode !== 'none' && !settings.drawMode) {
+                    const mouseForce = this.mouseInteraction();
+                    this.acc = vecAdd(this.acc, mouseForce);
+                }
+
+                // Wall avoidance
+                const wallForce = this.avoidWalls();
+                this.acc = vecAdd(this.acc, wallForce);
+
+                // Update velocity (scale acceleration by dt)
+                this.vel = vecAdd(this.vel, vecMult(this.acc, dt));
+
+                // Airplane preset: enforce minimum speed and smooth turning
+                if (settings.preset === 'airplanes') {
+                    const minSpeed = settings.maxSpeed * 0.4;
+                    const speed = vecMag(this.vel);
+                    if (speed < minSpeed) {
+                        this.vel = vecMult(vecNormalize(this.vel), minSpeed);
+                    }
+
+                    // Get desired angle from current velocity
+                    const desiredAngle = vecAngle(this.vel);
+
+                    // Initialize smoothed angle if needed
+                    if (this.smoothedAngle === undefined) {
+                        this.smoothedAngle = desiredAngle;
+                    }
+
+                    // Calculate angle difference (handle wrap-around)
+                    let angleDiff = desiredAngle - this.smoothedAngle;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+                    // Limit turn rate and smoothly interpolate
+                    const maxTurnRate = 0.04 * dt; // Smoother turning
+                    const turnAmount = Math.max(-maxTurnRate, Math.min(maxTurnRate, angleDiff * 0.15));
+                    this.smoothedAngle += turnAmount;
+
+                    // Normalize smoothed angle
+                    while (this.smoothedAngle > Math.PI) this.smoothedAngle -= Math.PI * 2;
+                    while (this.smoothedAngle < -Math.PI) this.smoothedAngle += Math.PI * 2;
+
+                    // Apply smoothed angle to velocity
+                    const currentSpeed = vecMag(this.vel);
+                    this.vel = vec(
+                        Math.cos(this.smoothedAngle) * currentSpeed,
+                        Math.sin(this.smoothedAngle) * currentSpeed
+                    );
+
+                    // Calculate banking based on turn rate
+                    this.targetBankAngle = Math.max(-0.5, Math.min(0.5, turnAmount * 15));
+                    this.bankAngle += (this.targetBankAngle - this.bankAngle) * 0.1;
+
+                    // Update contrail (clear if wrapped around screen edge)
+                    if (this.contrailPoints.length > 0) {
+                        const lastPoint = this.contrailPoints[0];
+                        const dx = Math.abs(this.pos.x - lastPoint.x);
+                        const dy = Math.abs(this.pos.y - lastPoint.y);
+                        // If jumped more than half the screen, we wrapped - clear contrail
+                        if (dx > canvas.width / 2 || dy > canvas.height / 2) {
+                            this.contrailPoints = [];
+                        }
+                    }
+                    this.contrailPoints.unshift({ ...this.pos });
+                    const maxContrail = this.aircraftType === 'airliner' ? 60 :
+                                        this.aircraftType === 'heavy' ? 80 : 30;
+                    if (this.contrailPoints.length > maxContrail) {
+                        this.contrailPoints.pop();
+                    }
+                }
+
+                const maxSpd = this.isPredator ?
+                    settings.maxSpeed * (settings.predatorSpeed / 100) :
+                    settings.maxSpeed;
+                this.vel = vecLimit(this.vel, maxSpd);
+
+                // Update position (scale velocity by dt)
+                this.pos = vecAdd(this.pos, vecMult(this.vel, dt));
+
+                // Wrap edges
+                if (this.pos.x < 0) this.pos.x = canvas.width;
+                if (this.pos.x > canvas.width) this.pos.x = 0;
+                if (this.pos.y < 0) this.pos.y = canvas.height;
+                if (this.pos.y > canvas.height) this.pos.y = 0;
+
+                // Reset acceleration
+                this.acc = vec(0, 0);
+
+                // Trail (clear if wrapped around screen edge)
+                if (settings.showTrails) {
+                    if (this.trail.length > 0) {
+                        const lastPoint = this.trail[0];
+                        const dx = Math.abs(this.pos.x - lastPoint.x);
+                        const dy = Math.abs(this.pos.y - lastPoint.y);
+                        if (dx > canvas.width / 2 || dy > canvas.height / 2) {
+                            this.trail = [];
+                        }
+                    }
+                    this.trail.unshift({ ...this.pos });
+                    if (this.trail.length > settings.trailLength) {
+                        this.trail.pop();
+                    }
+                }
+            }
+
+            flock(allBoids, predators) {
+                let separation = vec(0, 0);
+                let alignment = vec(0, 0);
+                let cohesion = vec(0, 0);
+                let separationCount = 0;
+                let total = 0;
+
+                for (const other of allBoids) {
+                    if (other === this) continue;
+                    const d = vecDist(this.pos, other.pos);
+
+                    if (d < settings.neighborRadius) {
+                        // Separation (stronger when closer)
+                        if (d < settings.neighborRadius * 0.5 && d > 0) {
+                            let diff = vecSub(this.pos, other.pos);
+                            diff = vecDiv(diff, d * d);
+                            separation = vecAdd(separation, diff);
+                            separationCount++;
+                        }
+
+                        // Alignment & Cohesion
+                        alignment = vecAdd(alignment, other.vel);
+                        cohesion = vecAdd(cohesion, other.pos);
+                        total++;
+                    }
+                }
+
+                if (separationCount > 0) {
+                    separation = vecDiv(separation, separationCount);
+                    separation = vecNormalize(separation);
+                    separation = vecMult(separation, settings.maxSpeed);
+                    separation = vecSub(separation, this.vel);
+                    separation = vecLimit(separation, 0.5);
+                }
+
+                if (total > 0) {
+                    alignment = vecDiv(alignment, total);
+                    alignment = vecNormalize(alignment);
+                    alignment = vecMult(alignment, settings.maxSpeed);
+                    alignment = vecSub(alignment, this.vel);
+                    alignment = vecLimit(alignment, 0.3);
+
+                    cohesion = vecDiv(cohesion, total);
+                    cohesion = vecSub(cohesion, this.pos);
+                    cohesion = vecNormalize(cohesion);
+                    cohesion = vecMult(cohesion, settings.maxSpeed);
+                    cohesion = vecSub(cohesion, this.vel);
+                    cohesion = vecLimit(cohesion, 0.3);
+                }
+
+                // Apply weights
+                separation = vecMult(separation, settings.separation);
+                alignment = vecMult(alignment, settings.alignment);
+                cohesion = vecMult(cohesion, settings.cohesion);
+
+                this.acc = vecAdd(this.acc, separation);
+                this.acc = vecAdd(this.acc, alignment);
+                this.acc = vecAdd(this.acc, cohesion);
+
+                // Flee from predators
+                for (const pred of predators) {
+                    const d = vecDist(this.pos, pred.pos);
+                    const fleeRadius = settings.neighborRadius * 2;
+                    if (d < fleeRadius && d > 0) {
+                        let flee = vecSub(this.pos, pred.pos);
+                        flee = vecNormalize(flee);
+                        flee = vecMult(flee, settings.maxSpeed * 2);
+                        flee = vecDiv(flee, d / fleeRadius);
+                        this.acc = vecAdd(this.acc, flee);
+                    }
+                }
+
+                this.neighborCount = total;
+            }
+
+            // 3D Flocking - separate implementation to keep 2D code intact
+            flock3D(allBoids, predators) {
+                let separation = vec3(0, 0, 0);
+                let alignment = vec3(0, 0, 0);
+                let cohesion = vec3(0, 0, 0);
+                let separationCount = 0;
+                let total = 0;
+
+                for (const other of allBoids) {
+                    if (other === this) continue;
+                    const d = vec3Dist(this.pos3D, other.pos3D);
+
+                    if (d < settings.neighborRadius * 1.5) { // Slightly larger radius for 3D
+                        if (d < settings.neighborRadius * 0.5 && d > 0) {
+                            let diff = vec3Sub(this.pos3D, other.pos3D);
+                            diff = vec3Div(diff, d * d);
+                            separation = vec3Add(separation, diff);
+                            separationCount++;
+                        }
+
+                        alignment = vec3Add(alignment, other.vel3D);
+                        cohesion = vec3Add(cohesion, other.pos3D);
+                        total++;
+                    }
+                }
+
+                if (separationCount > 0) {
+                    separation = vec3Div(separation, separationCount);
+                    separation = vec3Normalize(separation);
+                    separation = vec3Mult(separation, settings.maxSpeed);
+                    separation = vec3Sub(separation, this.vel3D);
+                    separation = vec3Limit(separation, 0.5);
+                }
+
+                if (total > 0) {
+                    alignment = vec3Div(alignment, total);
+                    alignment = vec3Normalize(alignment);
+                    alignment = vec3Mult(alignment, settings.maxSpeed);
+                    alignment = vec3Sub(alignment, this.vel3D);
+                    alignment = vec3Limit(alignment, 0.3);
+
+                    cohesion = vec3Div(cohesion, total);
+                    cohesion = vec3Sub(cohesion, this.pos3D);
+                    cohesion = vec3Normalize(cohesion);
+                    cohesion = vec3Mult(cohesion, settings.maxSpeed);
+                    cohesion = vec3Sub(cohesion, this.vel3D);
+                    cohesion = vec3Limit(cohesion, 0.3);
+                }
+
+                separation = vec3Mult(separation, settings.separation);
+                alignment = vec3Mult(alignment, settings.alignment);
+                cohesion = vec3Mult(cohesion, settings.cohesion);
+
+                this.acc3D = vec3Add(this.acc3D, separation);
+                this.acc3D = vec3Add(this.acc3D, alignment);
+                this.acc3D = vec3Add(this.acc3D, cohesion);
+
+                // Flee from predators in 3D
+                for (const pred of predators) {
+                    const d = vec3Dist(this.pos3D, pred.pos3D);
+                    const fleeRadius = settings.neighborRadius * 2;
+                    if (d < fleeRadius && d > 0) {
+                        let flee = vec3Sub(this.pos3D, pred.pos3D);
+                        flee = vec3Normalize(flee);
+                        flee = vec3Mult(flee, settings.maxSpeed * 2);
+                        flee = vec3Div(flee, d / fleeRadius);
+                        this.acc3D = vec3Add(this.acc3D, flee);
+                    }
+                }
+
+                this.neighborCount = total;
+            }
+
+            update3D(allBoids, predators, dt) {
+                if (this.isPredator) {
+                    this.updatePredator3D(allBoids);
+                } else {
+                    this.flock3D(allBoids, predators);
+                }
+
+                // Update velocity
+                this.vel3D = vec3Add(this.vel3D, vec3Mult(this.acc3D, dt));
+
+                // Enforce minimum speed for airplanes
+                const minSpeed = settings.maxSpeed * 0.4;
+                let speed = vec3Mag(this.vel3D);
+                if (speed < minSpeed) {
+                    this.vel3D = vec3Mult(vec3Normalize(this.vel3D), minSpeed);
+                }
+
+                // Limit max speed
+                const maxSpd = this.isPredator ?
+                    settings.maxSpeed * (settings.predatorSpeed / 100) :
+                    settings.maxSpeed;
+                this.vel3D = vec3Limit(this.vel3D, maxSpd);
+
+                // Smooth turning (get 2D angle for banking)
+                const desiredAngle = Math.atan2(this.vel3D.y, this.vel3D.x);
+                if (this.smoothedAngle === undefined) {
+                    this.smoothedAngle = desiredAngle;
+                }
+                let angleDiff = desiredAngle - this.smoothedAngle;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                const maxTurnRate = 0.04 * dt;
+                const turnAmount = Math.max(-maxTurnRate, Math.min(maxTurnRate, angleDiff * 0.15));
+                this.smoothedAngle += turnAmount;
+                this.targetBankAngle = Math.max(-0.5, Math.min(0.5, turnAmount * 15));
+                this.bankAngle += (this.targetBankAngle - this.bankAngle) * 0.1;
+
+                // Update position
+                this.pos3D = vec3Add(this.pos3D, vec3Mult(this.vel3D, dt));
+
+                // Wrap edges in 3D
+                if (this.pos3D.x < 0) this.pos3D.x = canvas.width;
+                if (this.pos3D.x > canvas.width) this.pos3D.x = 0;
+                if (this.pos3D.y < 0) this.pos3D.y = canvas.height;
+                if (this.pos3D.y > canvas.height) this.pos3D.y = 0;
+
+                // Wrap or bounce z-axis
+                const halfDepth = settings.depthRange / 2;
+                if (this.pos3D.z < -halfDepth) {
+                    this.pos3D.z = -halfDepth;
+                    this.vel3D.z *= -0.5;
+                }
+                if (this.pos3D.z > halfDepth) {
+                    this.pos3D.z = halfDepth;
+                    this.vel3D.z *= -0.5;
+                }
+
+                // Reset acceleration
+                this.acc3D = vec3(0, 0, 0);
+
+                // Update 2D pos for compatibility (projected position)
+                const projected = project3D(this.pos3D);
+                this.pos = vec(projected.x, projected.y);
+                this.projectedScale = projected.scale;
+                this.projectedBehind = projected.behind;
+            }
+
+            updatePredator3D(allBoids) {
+                let nearest = null;
+                let nearestDist = Infinity;
+
+                for (const boid of allBoids) {
+                    const d = vec3Dist(this.pos3D, boid.pos3D);
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearest = boid;
+                    }
+                }
+
+                if (nearest) {
+                    this.target = nearest;
+                    let pursue = vec3Sub(nearest.pos3D, this.pos3D);
+                    pursue = vec3Normalize(pursue);
+                    pursue = vec3Mult(pursue, settings.maxSpeed * (settings.predatorSpeed / 100));
+                    pursue = vec3Sub(pursue, this.vel3D);
+                    pursue = vec3Limit(pursue, 0.5);
+                    pursue = vec3Mult(pursue, settings.predatorAggression);
+                    this.acc3D = vec3Add(this.acc3D, pursue);
+                }
+            }
+
+            updatePredator(allBoids) {
+                // Find nearest boid
+                let nearest = null;
+                let nearestDist = Infinity;
+
+                for (const boid of allBoids) {
+                    const d = vecDist(this.pos, boid.pos);
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearest = boid;
+                    }
+                }
+
+                if (nearest) {
+                    this.target = nearest;
+                    let pursue = vecSub(nearest.pos, this.pos);
+                    pursue = vecNormalize(pursue);
+                    pursue = vecMult(pursue, settings.maxSpeed * (settings.predatorSpeed / 100));
+                    pursue = vecSub(pursue, this.vel);
+                    pursue = vecLimit(pursue, 0.5);
+                    pursue = vecMult(pursue, settings.predatorAggression);
+                    this.acc = vecAdd(this.acc, pursue);
+                }
+            }
+
+            mouseInteraction() {
+                const d = vecDist(this.pos, mousePos);
+                if (d < settings.mouseRadius && d > 0) {
+                    let force = settings.mouseMode === 'attract' ?
+                        vecSub(mousePos, this.pos) :
+                        vecSub(this.pos, mousePos);
+                    force = vecNormalize(force);
+                    force = vecMult(force, settings.mouseStrength);
+                    force = vecMult(force, 1 - d / settings.mouseRadius);
+                    return force;
+                }
+                return vec(0, 0);
+            }
+
+            avoidWalls() {
+                let force = vec(0, 0);
+                const avoidDist = settings.neighborRadius;
+
+                for (const wall of walls) {
+                    for (let i = 0; i < wall.length - 1; i++) {
+                        const closest = this.closestPointOnLine(
+                            wall[i], wall[i + 1], this.pos
+                        );
+                        const d = vecDist(this.pos, closest);
+                        if (d < avoidDist && d > 0) {
+                            let avoid = vecSub(this.pos, closest);
+                            avoid = vecNormalize(avoid);
+                            avoid = vecMult(avoid, (avoidDist - d) / avoidDist * 2);
+                            force = vecAdd(force, avoid);
+                        }
+                    }
+                }
+
+                return force;
+            }
+
+            closestPointOnLine(a, b, p) {
+                const ab = vecSub(b, a);
+                const ap = vecSub(p, a);
+                const t = Math.max(0, Math.min(1,
+                    (ap.x * ab.x + ap.y * ab.y) / (ab.x * ab.x + ab.y * ab.y || 1)
+                ));
+                return vecAdd(a, vecMult(ab, t));
+            }
+
+            draw() {
+                // Skip if behind camera in 3D mode
+                if (settings.mode3D && this.projectedBehind) {
+                    return;
+                }
+
+                const angle = settings.mode3D ? this.smoothedAngle || vecAngle(this.vel) : vecAngle(this.vel);
+                let size = settings.preset === 'airplanes' ?
+                    this.getAircraftSize() : settings.boidSize;
+
+                // Scale by depth in 3D mode
+                if (settings.mode3D && this.projectedScale) {
+                    size *= this.projectedScale;
+                    // Skip if too small (very far away)
+                    if (size < 1) return;
+                }
+
+                // Draw trail
+                if (settings.showTrails && this.trail.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                    ctx.strokeStyle = this.getColor(settings.trailOpacity);
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                // Draw contrails for airplanes (skip in 3D mode)
+                if (settings.preset === 'airplanes' && !settings.mode3D && this.contrailPoints.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.contrailPoints[0].x, this.contrailPoints[0].y);
+                    for (let i = 1; i < this.contrailPoints.length; i++) {
+                        const alpha = 1 - i / this.contrailPoints.length;
+                        ctx.lineTo(this.contrailPoints[i].x, this.contrailPoints[i].y);
+                    }
+                    ctx.strokeStyle = `rgba(255, 255, 255, 0.3)`;
+                    ctx.lineWidth = this.aircraftType === 'heavy' ? 3 :
+                                   this.aircraftType === 'airliner' ? 2 : 1;
+                    ctx.stroke();
+                }
+
+                ctx.save();
+                ctx.translate(this.pos.x, this.pos.y);
+                ctx.rotate(angle);
+
+                // Depth-based opacity in 3D mode (distant planes are more faded)
+                if (settings.mode3D && this.pos3D) {
+                    const depthFactor = (this.pos3D.z + settings.depthRange / 2) / settings.depthRange;
+                    const opacity = 0.4 + (1 - depthFactor) * 0.6; // 0.4 to 1.0
+                    ctx.globalAlpha = opacity;
+                }
+
+                if (settings.preset === 'airplanes') {
+                    // Apply banking
+                    ctx.scale(1, 1 - Math.abs(this.bankAngle) * 0.3);
+                    this.drawAircraft(size);
+                } else if (this.isPredator) {
+                    this.drawPredator(size * 1.5);
+                } else {
+                    this.drawBoid(size);
+                }
+
+                ctx.restore();
+
+                // Draw navigation lights for airplanes (skip in 3D for very distant planes)
+                if (settings.preset === 'airplanes') {
+                    if (!settings.mode3D || (this.projectedScale && this.projectedScale > 0.5)) {
+                        this.drawNavigationLights(angle, size);
+                    }
+                }
+            }
+
+            drawBoid(size) {
+                ctx.beginPath();
+                ctx.moveTo(size, 0);
+                ctx.lineTo(-size * 0.6, size * 0.4);
+                ctx.lineTo(-size * 0.3, 0);
+                ctx.lineTo(-size * 0.6, -size * 0.4);
+                ctx.closePath();
+                ctx.fillStyle = this.getColor(1);
+                ctx.fill();
+            }
+
+            drawPredator(size) {
+                ctx.beginPath();
+                ctx.moveTo(size, 0);
+                ctx.lineTo(-size * 0.7, size * 0.5);
+                ctx.lineTo(-size * 0.2, 0);
+                ctx.lineTo(-size * 0.7, -size * 0.5);
+                ctx.closePath();
+
+                // Pulsing glow
+                const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 15 * pulse;
+                ctx.fillStyle = '#ff3333';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            drawAircraft(size) {
+                ctx.fillStyle = this.getAircraftColor();
+
+                switch (this.aircraftType) {
+                    case 'airliner':
+                        // Wide body aircraft
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, size * 0.8, size * 0.15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Wings
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.1, 0);
+                        ctx.lineTo(-size * 0.3, size * 0.6);
+                        ctx.lineTo(-size * 0.5, size * 0.6);
+                        ctx.lineTo(-size * 0.3, 0);
+                        ctx.lineTo(-size * 0.5, -size * 0.6);
+                        ctx.lineTo(-size * 0.3, -size * 0.6);
+                        ctx.closePath();
+                        ctx.fill();
+                        // Tail
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.7, 0);
+                        ctx.lineTo(-size * 0.9, size * 0.25);
+                        ctx.lineTo(-size * 0.9, -size * 0.25);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+
+                    case 'ga':
+                        // Small prop plane
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, size * 0.6, size * 0.1, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Wings
+                        ctx.fillRect(-size * 0.2, -size * 0.5, size * 0.15, size);
+                        // Tail
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.5, 0);
+                        ctx.lineTo(-size * 0.7, size * 0.2);
+                        ctx.lineTo(-size * 0.7, -size * 0.2);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+
+                    case 'fighter':
+                        // Delta wing fighter
+                        ctx.beginPath();
+                        ctx.moveTo(size * 0.7, 0);
+                        ctx.lineTo(-size * 0.5, size * 0.5);
+                        ctx.lineTo(-size * 0.3, 0);
+                        ctx.lineTo(-size * 0.5, -size * 0.5);
+                        ctx.closePath();
+                        ctx.fill();
+                        // Tail fins
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.3, size * 0.1);
+                        ctx.lineTo(-size * 0.5, size * 0.2);
+                        ctx.lineTo(-size * 0.5, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.3, -size * 0.1);
+                        ctx.lineTo(-size * 0.5, -size * 0.2);
+                        ctx.lineTo(-size * 0.5, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+
+                    case 'heavy':
+                        // Large cargo/bomber
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, size * 0.9, size * 0.2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Wings
+                        ctx.beginPath();
+                        ctx.moveTo(size * 0.1, 0);
+                        ctx.lineTo(-size * 0.2, size * 0.8);
+                        ctx.lineTo(-size * 0.6, size * 0.7);
+                        ctx.lineTo(-size * 0.3, 0);
+                        ctx.lineTo(-size * 0.6, -size * 0.7);
+                        ctx.lineTo(-size * 0.2, -size * 0.8);
+                        ctx.closePath();
+                        ctx.fill();
+                        // Tail
+                        ctx.beginPath();
+                        ctx.moveTo(-size * 0.8, 0);
+                        ctx.lineTo(-size, size * 0.35);
+                        ctx.lineTo(-size, -size * 0.35);
+                        ctx.closePath();
+                        ctx.fill();
+                        break;
+                }
+            }
+
+            getAircraftColor() {
+                if (this.isPredator) return '#cc3333';
+
+                switch (this.aircraftType) {
+                    case 'airliner': return '#e8e8e8';
+                    case 'ga':
+                        const gaColors = ['#ffffff', '#cc4444', '#4444cc', '#44cc44'];
+                        return gaColors[Math.floor(this.lightPhase * 2) % gaColors.length];
+                    case 'fighter': return '#888888';
+                    case 'heavy': return '#778866';
+                    default: return '#ffffff';
+                }
+            }
+
+            drawNavigationLights(angle, size) {
+                const time = Date.now() * 0.001;
+                const blinkOn = Math.sin(time * 6 + this.lightPhase) > 0;
+
+                if (blinkOn) {
+                    const wingSpan = size * 0.5;
+
+                    // Left wing - red (port side)
+                    const leftX = this.pos.x + Math.cos(angle - Math.PI * 0.5) * wingSpan;
+                    const leftY = this.pos.y + Math.sin(angle - Math.PI * 0.5) * wingSpan;
+                    ctx.beginPath();
+                    ctx.arc(leftX, leftY, 1.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(200, 60, 60, 0.8)';
+                    ctx.fill();
+
+                    // Right wing - green (starboard side)
+                    const rightX = this.pos.x + Math.cos(angle + Math.PI * 0.5) * wingSpan;
+                    const rightY = this.pos.y + Math.sin(angle + Math.PI * 0.5) * wingSpan;
+                    ctx.beginPath();
+                    ctx.arc(rightX, rightY, 1.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(60, 180, 60, 0.8)';
+                    ctx.fill();
+
+                    // Tail - white (dimmer)
+                    const tailX = this.pos.x + Math.cos(angle + Math.PI) * size * 0.7;
+                    const tailY = this.pos.y + Math.sin(angle + Math.PI) * size * 0.7;
+                    ctx.beginPath();
+                    ctx.arc(tailX, tailY, 1.5, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(220, 220, 220, 0.8)';
+                    ctx.fill();
+                }
+            }
+
+            getColor(alpha = 1) {
+                if (this.isPredator) {
+                    return `rgba(255, 50, 50, ${alpha})`;
+                }
+
+                switch (settings.colorMode) {
+                    case 'velocity':
+                        const speed = vecMag(this.vel);
+                        const hue = (1 - speed / settings.maxSpeed) * 240;
+                        return `hsla(${hue}, 100%, 50%, ${alpha})`;
+                    case 'direction':
+                        const angle = vecAngle(this.vel);
+                        const dirHue = ((angle + Math.PI) / (Math.PI * 2)) * 360;
+                        return `hsla(${dirHue}, 100%, 50%, ${alpha})`;
+                    default:
+                        const hex = settings.boidColor;
+                        const r = parseInt(hex.slice(1, 3), 16);
+                        const g = parseInt(hex.slice(3, 5), 16);
+                        const b = parseInt(hex.slice(5, 7), 16);
+                        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                }
+            }
+        }
+
+        // Initialize clouds for airplane preset
+        function initClouds() {
+            clouds = [];
+            for (let layer = 0; layer < 3; layer++) {
+                const count = layer === 0 ? 6 : layer === 1 ? 10 : 12;
+                const speed = layer === 0 ? 0.08 : layer === 1 ? 0.2 : 0.4;
+                const sizeRange = layer === 0 ? [180, 350] : layer === 1 ? [100, 180] : [50, 100];
+                const opacity = layer === 0 ? 0.6 : layer === 1 ? 0.75 : 0.9;
+
+                // 3D layer heights (y in 3D space, negative is up)
+                const layerHeight = layer === 0 ? -800 : layer === 1 ? -500 : -200;
+                const layerDepth = layer === 0 ? 2000 : layer === 1 ? 1200 : 600;
+
+                for (let i = 0; i < count; i++) {
+                    const size = sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0]);
+                    // Generate puffs for this cloud
+                    const puffs = [];
+                    const puffCount = 8 + Math.floor(Math.random() * 6);
+                    for (let p = 0; p < puffCount; p++) {
+                        const angle = (p / puffCount) * Math.PI * 2 + Math.random() * 0.5;
+                        const dist = Math.random() * 0.35;
+                        puffs.push({
+                            offsetX: Math.cos(angle) * dist,
+                            offsetY: Math.sin(angle) * dist * 0.5, // Flatter clouds
+                            radius: 0.25 + Math.random() * 0.2
+                        });
+                    }
+                    // Add center puffs for fullness
+                    for (let p = 0; p < 4; p++) {
+                        puffs.push({
+                            offsetX: (Math.random() - 0.5) * 0.3,
+                            offsetY: (Math.random() - 0.5) * 0.15,
+                            radius: 0.3 + Math.random() * 0.15
+                        });
+                    }
+
+                    clouds.push({
+                        x: Math.random() * (canvas.width + size * 2) - size,
+                        y: Math.random() * canvas.height * 0.7,
+                        size: size,
+                        speed: speed * (0.8 + Math.random() * 0.4),
+                        layer: layer,
+                        opacity: opacity,
+                        puffs: puffs,
+                        // 3D position for 3D mode
+                        pos3D: vec3(
+                            (Math.random() - 0.5) * 4000,
+                            layerHeight + (Math.random() - 0.5) * 200,
+                            (Math.random() - 0.5) * layerDepth + layerDepth * 0.5
+                        ),
+                        baseSize: size
+                    });
+                }
+            }
+            // Sun position in 3D (far away, high up)
+            sunPos = {
+                x: canvas.width * (0.7 + Math.random() * 0.2),
+                y: canvas.height * 0.1 + Math.random() * canvas.height * 0.2
+            };
+            sunPos3D = vec3(2000, -1500, 3000);
+        }
+
+        // Project a 3D point for environment (similar to boid projection but for static elements)
+        function projectEnvironment3D(pos3D) {
+            const focalLength = 800;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Translate position relative to camera
+            let px = pos3D.x - camera.x;
+            let py = pos3D.y - camera.y;
+            let pz = pos3D.z - camera.z;
+
+            // Apply yaw rotation
+            const cosYaw = Math.cos(camera.yaw);
+            const sinYaw = Math.sin(camera.yaw);
+            const rotatedX = px * cosYaw - pz * sinYaw;
+            const rotatedZ = px * sinYaw + pz * cosYaw;
+            px = rotatedX;
+            pz = rotatedZ;
+
+            // Apply pitch rotation
+            const cosPitch = Math.cos(camera.pitch);
+            const sinPitch = Math.sin(camera.pitch);
+            const rotatedY = py * cosPitch - pz * sinPitch;
+            const rotatedZ2 = py * sinPitch + pz * cosPitch;
+            py = rotatedY;
+            pz = rotatedZ2;
+
+            const z = pz + focalLength;
+
+            if (z < 50) {
+                return { x: -9999, y: -9999, scale: 0, behind: true, depth: pz };
+            }
+
+            const scale = focalLength / z;
+
+            return {
+                x: centerX + px * scale,
+                y: centerY + py * scale,
+                scale: scale,
+                behind: false,
+                depth: pz
+            };
+        }
+
+        // Initialize simulation
+        function init() {
+            boids = [];
+            predators = [];
+
+            for (let i = 0; i < settings.boidCount; i++) {
+                boids.push(new Boid(
+                    Math.random() * canvas.width,
+                    Math.random() * canvas.height
+                ));
+            }
+
+            if (settings.predatorEnabled) {
+                for (let i = 0; i < settings.predatorCount; i++) {
+                    predators.push(new Boid(
+                        Math.random() * canvas.width,
+                        Math.random() * canvas.height,
+                        true
+                    ));
+                }
+            }
+
+            if (settings.preset === 'airplanes') {
+                initClouds();
+            }
+        }
+
+        // Draw background
+        function drawBackground() {
+            if (settings.preset === 'airplanes') {
+                drawAirplaneBackground();
+            } else {
+                ctx.fillStyle = settings.bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function getTimeOfDayColors() {
+            const tod = settings.timeOfDay;
+            let skyTop, skyBottom, skyHorizon, sunColor, groundColor, groundFar, gridColor;
+
+            switch (tod) {
+                case 'dawn':
+                    skyTop = '#4a6fa5';
+                    skyBottom = '#ffb366';
+                    skyHorizon = '#ffd4a8';
+                    sunColor = '#ffdd88';
+                    groundColor = '#3d5c3d';
+                    groundFar = '#6b8e6b';
+                    gridColor = 'rgba(80, 60, 40, 0.3)';
+                    break;
+                case 'dusk':
+                    skyTop = '#2a1f5c';
+                    skyBottom = '#ff6b35';
+                    skyHorizon = '#ff9966';
+                    sunColor = '#ff8844';
+                    groundColor = '#2d3d2d';
+                    groundFar = '#5a4a3a';
+                    gridColor = 'rgba(60, 40, 30, 0.4)';
+                    break;
+                case 'night':
+                    skyTop = '#0a0a1a';
+                    skyBottom = '#1a1a3a';
+                    skyHorizon = '#1a1a2a';
+                    sunColor = null;
+                    groundColor = '#0a0f0a';
+                    groundFar = '#151a15';
+                    gridColor = 'rgba(30, 40, 30, 0.5)';
+                    break;
+                default: // midday
+                    skyTop = '#1E90FF';
+                    skyBottom = '#87CEEB';
+                    skyHorizon = '#b8d4e8';
+                    sunColor = '#ffffcc';
+                    groundColor = '#4a7a4a';
+                    groundFar = '#8ab88a';
+                    gridColor = 'rgba(60, 90, 60, 0.3)';
+            }
+            return { skyTop, skyBottom, skyHorizon, sunColor, groundColor, groundFar, gridColor };
+        }
+
+        function drawAirplaneBackground() {
+            const colors = getTimeOfDayColors();
+
+            if (settings.mode3D) {
+                drawAirplaneBackground3D(colors);
+            } else {
+                drawAirplaneBackground2D(colors);
+            }
+        }
+
+        function drawAirplaneBackground2D(colors) {
+            // Sky gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, colors.skyTop);
+            gradient.addColorStop(1, colors.skyBottom);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Stars for night
+            if (settings.timeOfDay === 'night') {
+                ctx.fillStyle = '#ffffff';
+                for (let i = 0; i < 200; i++) {
+                    const x = (i * 7919) % canvas.width;
+                    const y = (i * 6271) % (canvas.height * 0.7);
+                    const size = Math.random() * 1.5 + 0.5;
+                    const twinkle = Math.sin(Date.now() * 0.002 + i) * 0.3 + 0.7;
+                    ctx.globalAlpha = twinkle;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            // Sun
+            if (colors.sunColor) {
+                ctx.beginPath();
+                const sunGrad = ctx.createRadialGradient(
+                    sunPos.x, sunPos.y, 0,
+                    sunPos.x, sunPos.y, 100
+                );
+                sunGrad.addColorStop(0, colors.sunColor);
+                sunGrad.addColorStop(0.3, colors.sunColor);
+                sunGrad.addColorStop(1, 'transparent');
+                ctx.fillStyle = sunGrad;
+                ctx.arc(sunPos.x, sunPos.y, 100, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Far clouds (background)
+            drawClouds(0);
+            drawClouds(1);
+
+            // Ground (very faint)
+            const groundGrad = ctx.createLinearGradient(0, canvas.height * 0.9, 0, canvas.height);
+            groundGrad.addColorStop(0, 'transparent');
+            groundGrad.addColorStop(1, settings.timeOfDay === 'night' ? 'rgba(10, 10, 30, 0.3)' : 'rgba(100, 120, 80, 0.15)');
+            ctx.fillStyle = groundGrad;
+            ctx.fillRect(0, canvas.height * 0.9, canvas.width, canvas.height * 0.1);
+        }
+
+        function drawAirplaneBackground3D(colors) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            // Calculate horizon by projecting a very distant point on the ground plane
+            // Use a point that's always in front of the camera (based on yaw direction)
+            const groundPlaneY = 500; // Ground is 500 units below the default camera position
+            const forwardX = Math.sin(camera.yaw);
+            const forwardZ = Math.cos(camera.yaw);
+            const farPointX = camera.x + forwardX * 10000;
+            const farPointZ = camera.z + forwardZ * 10000;
+            const farGroundPoint = projectEnvironment3D(vec3(farPointX, groundPlaneY, farPointZ));
+            // Horizon is where the far ground point projects to (clamped to screen)
+            let horizonY = farGroundPoint.behind ? centerY - Math.tan(camera.pitch) * 800 : farGroundPoint.y;
+            horizonY = Math.max(-100, Math.min(canvas.height + 100, horizonY));
+
+            // Draw sky (above horizon)
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, Math.max(horizonY, 0));
+            skyGradient.addColorStop(0, colors.skyTop);
+            skyGradient.addColorStop(1, colors.skyHorizon);
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, Math.max(horizonY, canvas.height));
+
+            // Draw ground (below horizon)
+            if (horizonY < canvas.height) {
+                const groundGradient = ctx.createLinearGradient(0, horizonY, 0, canvas.height);
+                groundGradient.addColorStop(0, colors.groundFar);
+                groundGradient.addColorStop(1, colors.groundColor);
+                ctx.fillStyle = groundGradient;
+                ctx.fillRect(0, Math.max(0, horizonY), canvas.width, canvas.height - horizonY);
+            }
+
+            // Draw horizon line
+            if (horizonY > 0 && horizonY < canvas.height) {
+                ctx.strokeStyle = colors.skyHorizon;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, horizonY);
+                ctx.lineTo(canvas.width, horizonY);
+                ctx.stroke();
+            }
+
+            // Draw ground grid for depth perception
+            drawGroundGrid3D(colors, horizonY);
+
+            // Stars for night (in sky area only)
+            if (settings.timeOfDay === 'night' && horizonY > 0) {
+                ctx.fillStyle = '#ffffff';
+                for (let i = 0; i < 200; i++) {
+                    const starAngle = (i * 2.39996) + camera.yaw * 0.1; // Golden angle + slight parallax
+                    const starPitch = (i * 0.618) % 1.0 - 0.5;
+                    const x = centerX + Math.cos(starAngle) * canvas.width * 0.8;
+                    const y = (starPitch * horizonY * 1.5) + horizonY * 0.3;
+                    if (y > 0 && y < horizonY) {
+                        const twinkle = Math.sin(Date.now() * 0.002 + i) * 0.3 + 0.7;
+                        ctx.globalAlpha = twinkle;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1 + Math.random(), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            // Draw sun in 3D
+            if (colors.sunColor) {
+                const sunProjected = projectEnvironment3D(sunPos3D);
+                if (!sunProjected.behind && sunProjected.y < horizonY) {
+                    const sunSize = 80 * sunProjected.scale;
+                    if (sunSize > 5) {
+                        ctx.beginPath();
+                        const sunGrad = ctx.createRadialGradient(
+                            sunProjected.x, sunProjected.y, 0,
+                            sunProjected.x, sunProjected.y, sunSize * 1.5
+                        );
+                        sunGrad.addColorStop(0, colors.sunColor);
+                        sunGrad.addColorStop(0.3, colors.sunColor);
+                        sunGrad.addColorStop(1, 'transparent');
+                        ctx.fillStyle = sunGrad;
+                        ctx.arc(sunProjected.x, sunProjected.y, sunSize * 1.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Draw 3D clouds
+            drawClouds3D(colors);
+        }
+
+        function drawGroundGrid3D(colors, horizonY) {
+            // Skip if looking mostly up (no ground visible)
+            if (horizonY >= canvas.height + 200) return;
+
+            const groundY = 500; // Ground plane Y position in 3D space (positive = below camera)
+
+            ctx.strokeStyle = colors.gridColor;
+            ctx.lineWidth = 1.5;
+
+            const gridSpacing = 400;
+            const gridExtent = 5000;
+
+            // Grid is drawn relative to camera position for infinite ground effect
+            const camGridX = Math.floor(camera.x / gridSpacing) * gridSpacing;
+            const camGridZ = Math.floor(camera.z / gridSpacing) * gridSpacing;
+
+            // Draw lines going into the distance (along Z axis)
+            for (let gx = -gridExtent; gx <= gridExtent; gx += gridSpacing) {
+                const worldX = camGridX + gx;
+                const points = [];
+                for (let gz = -gridExtent; gz <= gridExtent; gz += 200) {
+                    const worldZ = camGridZ + gz;
+                    const p = projectEnvironment3D(vec3(worldX, groundY, worldZ));
+                    // Only include points that are in front of camera and below horizon
+                    if (!p.behind && p.y > horizonY) {
+                        points.push(p);
+                    }
+                }
+
+                if (points.length >= 2) {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // Draw cross lines (along X axis at various Z depths)
+            for (let gz = gridSpacing; gz <= gridExtent; gz += gridSpacing) {
+                const worldZ = camGridZ + gz;
+                const points = [];
+                for (let gx = -gridExtent; gx <= gridExtent; gx += 200) {
+                    const worldX = camGridX + gx;
+                    const p = projectEnvironment3D(vec3(worldX, groundY, worldZ));
+                    // Only include points that are in front of camera and below horizon
+                    if (!p.behind && p.y > horizonY) {
+                        points.push(p);
+                    }
+                }
+
+                if (points.length >= 2) {
+                    // Fade with distance
+                    const alpha = Math.max(0.15, 1 - gz / gridExtent);
+                    ctx.globalAlpha = alpha;
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            ctx.globalAlpha = 1;
+        }
+
+        // Update cloud positions in 3D (called from animation loop with dt)
+        function updateClouds3D(dt) {
+            for (const cloud of clouds) {
+                // Move cloud slowly in world space
+                cloud.pos3D.x += cloud.speed * 3 * dt;
+
+                // Wrap around when too far
+                if (cloud.pos3D.x > 2500) {
+                    cloud.pos3D.x = -2500;
+                    // Randomize z position a bit when wrapping
+                    cloud.pos3D.z += (Math.random() - 0.5) * 500;
+                }
+            }
+        }
+
+        function drawClouds3D(colors) {
+            // Sort clouds by depth (furthest first)
+            const sortedClouds = [...clouds].sort((a, b) => {
+                const projA = projectEnvironment3D(a.pos3D);
+                const projB = projectEnvironment3D(b.pos3D);
+                return projB.depth - projA.depth;
+            });
+
+            for (const cloud of sortedClouds) {
+                const projected = projectEnvironment3D(cloud.pos3D);
+                if (projected.behind || projected.scale < 0.05) continue;
+
+                const cx = projected.x;
+                const cy = projected.y;
+                const s = cloud.baseSize * projected.scale;
+
+                if (s < 5) continue; // Too small to draw
+
+                // Skip if too far off screen
+                if (cx < -s * 2 || cx > canvas.width + s * 2 || cy < -s * 2 || cy > canvas.height + s * 2) continue;
+
+                // Determine colors based on time of day
+                let baseColor, shadowColor, highlightColor;
+                const tod = settings.timeOfDay;
+                const distanceFade = Math.min(1, projected.scale * 2);
+
+                if (tod === 'night') {
+                    baseColor = `rgba(35, 40, 55, ${cloud.opacity * 0.7 * distanceFade})`;
+                    shadowColor = `rgba(20, 25, 40, ${cloud.opacity * 0.5 * distanceFade})`;
+                    highlightColor = `rgba(50, 55, 70, ${cloud.opacity * 0.6 * distanceFade})`;
+                } else if (tod === 'dawn') {
+                    baseColor = `rgba(255, 235, 220, ${cloud.opacity * distanceFade})`;
+                    shadowColor = `rgba(200, 160, 140, ${cloud.opacity * 0.6 * distanceFade})`;
+                    highlightColor = `rgba(255, 250, 245, ${cloud.opacity * distanceFade})`;
+                } else if (tod === 'dusk') {
+                    baseColor = `rgba(255, 200, 170, ${cloud.opacity * distanceFade})`;
+                    shadowColor = `rgba(180, 100, 80, ${cloud.opacity * 0.5 * distanceFade})`;
+                    highlightColor = `rgba(255, 230, 200, ${cloud.opacity * distanceFade})`;
+                } else { // midday
+                    baseColor = `rgba(255, 255, 255, ${cloud.opacity * distanceFade})`;
+                    shadowColor = `rgba(200, 210, 220, ${cloud.opacity * 0.7 * distanceFade})`;
+                    highlightColor = `rgba(255, 255, 255, ${cloud.opacity * distanceFade})`;
+                }
+
+                // Draw shadow layer
+                ctx.fillStyle = shadowColor;
+                for (const puff of cloud.puffs) {
+                    ctx.beginPath();
+                    ctx.arc(cx + puff.offsetX * s, cy + puff.offsetY * s + s * 0.05, puff.radius * s, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw main cloud body
+                ctx.fillStyle = baseColor;
+                for (const puff of cloud.puffs) {
+                    ctx.beginPath();
+                    ctx.arc(cx + puff.offsetX * s, cy + puff.offsetY * s, puff.radius * s, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw highlight layer
+                ctx.fillStyle = highlightColor;
+                for (const puff of cloud.puffs) {
+                    if (puff.offsetY < 0) {
+                        ctx.beginPath();
+                        ctx.arc(cx + puff.offsetX * s, cy + puff.offsetY * s - s * 0.03, puff.radius * s * 0.7, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawClouds(layer) {
+            for (const cloud of clouds) {
+                if (cloud.layer !== layer) continue;
+
+                // Move clouds
+                cloud.x += cloud.speed;
+                if (cloud.x > canvas.width + cloud.size) {
+                    cloud.x = -cloud.size;
+                    cloud.y = Math.random() * canvas.height * 0.7;
+                }
+
+                const cx = cloud.x;
+                const cy = cloud.y;
+                const s = cloud.size;
+
+                // Determine colors based on time of day
+                let baseColor, shadowColor, highlightColor;
+                const tod = settings.timeOfDay;
+
+                if (tod === 'night') {
+                    baseColor = `rgba(35, 40, 55, ${cloud.opacity * 0.7})`;
+                    shadowColor = `rgba(20, 25, 40, ${cloud.opacity * 0.5})`;
+                    highlightColor = `rgba(50, 55, 70, ${cloud.opacity * 0.6})`;
+                } else if (tod === 'dawn') {
+                    baseColor = `rgba(255, 235, 220, ${cloud.opacity})`;
+                    shadowColor = `rgba(200, 160, 140, ${cloud.opacity * 0.6})`;
+                    highlightColor = `rgba(255, 250, 245, ${cloud.opacity})`;
+                } else if (tod === 'dusk') {
+                    baseColor = `rgba(255, 200, 170, ${cloud.opacity})`;
+                    shadowColor = `rgba(180, 100, 80, ${cloud.opacity * 0.5})`;
+                    highlightColor = `rgba(255, 230, 200, ${cloud.opacity})`;
+                } else { // midday
+                    baseColor = `rgba(255, 255, 255, ${cloud.opacity})`;
+                    shadowColor = `rgba(200, 210, 220, ${cloud.opacity * 0.7})`;
+                    highlightColor = `rgba(255, 255, 255, ${cloud.opacity})`;
+                }
+
+                // Draw shadow layer (slightly offset down)
+                ctx.fillStyle = shadowColor;
+                for (const puff of cloud.puffs) {
+                    ctx.beginPath();
+                    ctx.arc(
+                        cx + puff.offsetX * s,
+                        cy + puff.offsetY * s + s * 0.05,
+                        puff.radius * s,
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+
+                // Draw main cloud body
+                ctx.fillStyle = baseColor;
+                for (const puff of cloud.puffs) {
+                    ctx.beginPath();
+                    ctx.arc(
+                        cx + puff.offsetX * s,
+                        cy + puff.offsetY * s,
+                        puff.radius * s,
+                        0, Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+
+                // Draw highlight layer (top puffs only, slightly offset up)
+                ctx.fillStyle = highlightColor;
+                for (const puff of cloud.puffs) {
+                    if (puff.offsetY < 0) { // Only top puffs get highlights
+                        ctx.beginPath();
+                        ctx.arc(
+                            cx + puff.offsetX * s,
+                            cy + puff.offsetY * s - s * 0.03,
+                            puff.radius * s * 0.7,
+                            0, Math.PI * 2
+                        );
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawForegroundClouds() {
+            // In 3D mode, clouds are drawn as part of the background (already in 3D space)
+            if (settings.preset === 'airplanes' && !settings.mode3D) {
+                drawClouds(2);
+            }
+        }
+
+        // Draw walls
+        function drawWalls() {
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            const wallStyle = settings.preset === 'airplanes' ?
+                'rgba(255, 100, 100, 0.4)' :
+                `${settings.wallColor}${Math.floor(settings.wallOpacity * 255).toString(16).padStart(2, '0')}`;
+
+            ctx.strokeStyle = wallStyle;
+            ctx.lineWidth = settings.wallThickness;
+
+            for (const wall of walls) {
+                if (wall.length < 2) continue;
+                ctx.beginPath();
+                ctx.moveTo(wall[0].x, wall[0].y);
+                for (let i = 1; i < wall.length; i++) {
+                    ctx.lineTo(wall[i].x, wall[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // Current wall being drawn
+            if (currentWall && currentWall.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(currentWall[0].x, currentWall[0].y);
+                for (let i = 1; i < currentWall.length; i++) {
+                    ctx.lineTo(currentWall[i].x, currentWall[i].y);
+                }
+                ctx.stroke();
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            document.getElementById('fps').textContent = fps;
+            document.getElementById('boidCount').textContent = boids.length;
+
+            let totalSpeed = 0;
+            let totalNeighbors = 0;
+            for (const boid of boids) {
+                totalSpeed += vecMag(boid.vel);
+                totalNeighbors += boid.neighborCount || 0;
+            }
+
+            const avgSpeed = boids.length > 0 ? (totalSpeed / boids.length).toFixed(1) : 0;
+            const avgNeighbors = boids.length > 0 ? (totalNeighbors / boids.length).toFixed(1) : 0;
+
+            document.getElementById('avgSpeed').textContent = avgSpeed;
+            document.getElementById('avgNeighbors').textContent = avgNeighbors;
+        }
+
+        // Check predator catches
+        function checkPredatorCatches() {
+            if (!settings.predatorEnabled) return;
+
+            for (const pred of predators) {
+                for (let i = boids.length - 1; i >= 0; i--) {
+                    const d = vecDist(pred.pos, boids[i].pos);
+                    if (d < settings.killRadius) {
+                        if (settings.respawnPrey) {
+                            // Respawn at random edge
+                            const edge = Math.floor(Math.random() * 4);
+                            let x, y;
+                            switch (edge) {
+                                case 0: x = 0; y = Math.random() * canvas.height; break;
+                                case 1: x = canvas.width; y = Math.random() * canvas.height; break;
+                                case 2: x = Math.random() * canvas.width; y = 0; break;
+                                case 3: x = Math.random() * canvas.width; y = canvas.height; break;
+                            }
+                            boids[i] = new Boid(x, y);
+                        } else {
+                            boids.splice(i, 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Main loop
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            // FPS calculation
+            frameCount++;
+            if (time - lastFpsUpdate >= 500) {
+                fps = Math.round(frameCount * 1000 / (time - lastFpsUpdate));
+                frameCount = 0;
+                lastFpsUpdate = time;
+                updateStats();
+            }
+
+            if (paused) {
+                lastTime = time;
+                return;
+            }
+
+            // Calculate delta time (normalized to 60fps)
+            const deltaTime = lastTime ? (time - lastTime) / (1000 / 60) : 1;
+            // Clamp delta to prevent huge jumps (e.g., after tab switch)
+            const dt = Math.min(deltaTime, 3);
+
+            // Update camera position based on key input
+            updateCamera(dt);
+
+            // Update 3D clouds position
+            if (settings.mode3D && settings.preset === 'airplanes') {
+                updateClouds3D(dt);
+            }
+
+            // Clear and draw background
+            drawBackground();
+
+            // Draw walls
+            drawWalls();
+
+            // Update boids (use 3D or 2D based on mode)
+            if (settings.mode3D) {
+                for (const boid of boids) {
+                    boid.update3D(boids, predators, dt);
+                }
+                for (const pred of predators) {
+                    pred.update3D(boids, [], dt);
+                }
+            } else {
+                for (const boid of boids) {
+                    boid.update(boids, predators, dt);
+                }
+                for (const pred of predators) {
+                    pred.update(boids, [], dt);
+                }
+            }
+
+            // Sort by depth for proper 3D layering (furthest first)
+            let allToRender = [...boids, ...predators];
+            if (settings.mode3D) {
+                // Sort by distance to camera (accounting for rotation)
+                allToRender.sort((a, b) => {
+                    // Use projected scale - smaller scale means further away
+                    return (a.projectedScale || 0) - (b.projectedScale || 0);
+                });
+            }
+
+            // Draw boids
+            for (const entity of allToRender) {
+                entity.draw();
+            }
+
+            // Draw foreground clouds
+            drawForegroundClouds();
+
+            // Check predator catches
+            checkPredatorCatches();
+
+            lastTime = time;
+        }
+
+        // Event listeners
+        canvas.addEventListener('mousemove', (e) => {
+            mousePos = { x: e.clientX, y: e.clientY };
+            isMouseOnCanvas = true;
+
+            // 3D camera rotation with mouse drag
+            if (settings.mode3D && camera.isDragging) {
+                const deltaX = e.clientX - camera.lastMouseX;
+                const deltaY = e.clientY - camera.lastMouseY;
+
+                camera.yaw -= deltaX * camera.rotateSpeed;
+                camera.pitch -= deltaY * camera.rotateSpeed;
+
+                // Clamp pitch to prevent flipping
+                camera.pitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, camera.pitch));
+
+                camera.lastMouseX = e.clientX;
+                camera.lastMouseY = e.clientY;
+            } else if (settings.drawMode && currentWall) {
+                currentWall.push({ ...mousePos });
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isMouseOnCanvas = false;
+            camera.isDragging = false;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            // 3D camera drag with left mouse button
+            if (settings.mode3D && e.button === 0) {
+                camera.isDragging = true;
+                camera.lastMouseX = e.clientX;
+                camera.lastMouseY = e.clientY;
+            } else if (settings.drawMode) {
+                currentWall = [{ x: e.clientX, y: e.clientY }];
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            camera.isDragging = false;
+
+            if (settings.drawMode && currentWall && currentWall.length > 1) {
+                walls.push(currentWall);
+            }
+            currentWall = null;
+        });
+
+        // Prevent context menu on right-click for smooth camera control
+        canvas.addEventListener('contextmenu', (e) => {
+            if (settings.mode3D) {
+                e.preventDefault();
+            }
+        });
+
+        // Track pressed keys for smooth camera movement
+        const keysPressed = {};
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+            keysPressed[e.key.toLowerCase()] = true;
+
+            switch (e.key.toLowerCase()) {
+                case 'h':
+                    document.getElementById('panel').classList.toggle('hidden');
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    paused = !paused;
+                    document.getElementById('pause-overlay').classList.toggle('visible', paused);
+                    break;
+                case 'r':
+                    init();
+                    // Reset camera when resetting simulation
+                    if (settings.mode3D) {
+                        camera.x = 0;
+                        camera.y = 0;
+                        camera.z = 0;
+                        camera.yaw = 0;
+                        camera.pitch = 0;
+                    }
+                    break;
+                case 'c':
+                    // Reset camera only
+                    if (settings.mode3D) {
+                        camera.x = 0;
+                        camera.y = 0;
+                        camera.z = 0;
+                        camera.yaw = 0;
+                        camera.pitch = 0;
+                    }
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keysPressed[e.key.toLowerCase()] = false;
+        });
+
+        // Camera movement update function
+        function updateCamera(dt) {
+            if (!settings.mode3D) return;
+
+            const moveSpeed = camera.moveSpeed * dt;
+
+            // Calculate forward and right vectors based on yaw
+            const forwardX = Math.sin(camera.yaw);
+            const forwardZ = Math.cos(camera.yaw);
+            const rightX = Math.cos(camera.yaw);
+            const rightZ = -Math.sin(camera.yaw);
+
+            // WASD / Arrow key movement
+            if (keysPressed['w'] || keysPressed['arrowup']) {
+                camera.z += forwardZ * moveSpeed;
+                camera.x += forwardX * moveSpeed;
+            }
+            if (keysPressed['s'] || keysPressed['arrowdown']) {
+                camera.z -= forwardZ * moveSpeed;
+                camera.x -= forwardX * moveSpeed;
+            }
+            if (keysPressed['a'] || keysPressed['arrowleft']) {
+                camera.x -= rightX * moveSpeed;
+                camera.z -= rightZ * moveSpeed;
+            }
+            if (keysPressed['d'] || keysPressed['arrowright']) {
+                camera.x += rightX * moveSpeed;
+                camera.z += rightZ * moveSpeed;
+            }
+
+            // Q/E or Shift/Ctrl for vertical movement
+            if (keysPressed['q'] || keysPressed['shift']) {
+                camera.y -= moveSpeed;
+            }
+            if (keysPressed['e'] || keysPressed['control']) {
+                camera.y += moveSpeed;
+            }
+        }
+
+        // UI Controls
+        function setupSlider(id, setting, valueId, transform = v => v) {
+            const slider = document.getElementById(id);
+            const valueEl = document.getElementById(valueId);
+
+            slider.addEventListener('input', () => {
+                const val = transform(parseFloat(slider.value));
+                settings[setting] = val;
+                if (valueEl) valueEl.textContent = val;
+
+                // Handle boid count changes
+                if (setting === 'boidCount') {
+                    while (boids.length < val) {
+                        boids.push(new Boid(
+                            Math.random() * canvas.width,
+                            Math.random() * canvas.height
+                        ));
+                    }
+                    while (boids.length > val) {
+                        boids.pop();
+                    }
+                }
+
+                // Handle predator count changes
+                if (setting === 'predatorCount' && settings.predatorEnabled) {
+                    while (predators.length < val) {
+                        predators.push(new Boid(
+                            Math.random() * canvas.width,
+                            Math.random() * canvas.height,
+                            true
+                        ));
+                    }
+                    while (predators.length > val) {
+                        predators.pop();
+                    }
+                }
+            });
+        }
+
+        setupSlider('boidCountSlider', 'boidCount', 'boidCountVal');
+        setupSlider('separation', 'separation', 'separationVal');
+        setupSlider('alignment', 'alignment', 'alignmentVal');
+        setupSlider('cohesion', 'cohesion', 'cohesionVal');
+        setupSlider('neighborRadius', 'neighborRadius', 'neighborRadiusVal');
+        setupSlider('maxSpeed', 'maxSpeed', 'maxSpeedVal');
+        setupSlider('mouseRadius', 'mouseRadius', 'mouseRadiusVal');
+        setupSlider('mouseStrength', 'mouseStrength', 'mouseStrengthVal');
+        setupSlider('predatorCount', 'predatorCount', 'predatorCountVal');
+        setupSlider('predatorSpeed', 'predatorSpeed', 'predatorSpeedVal');
+        setupSlider('predatorAggression', 'predatorAggression', 'predatorAggressionVal');
+        setupSlider('killRadius', 'killRadius', 'killRadiusVal');
+        setupSlider('wallThickness', 'wallThickness', 'wallThicknessVal');
+        setupSlider('wallOpacity', 'wallOpacity', 'wallOpacityVal');
+        setupSlider('boidSize', 'boidSize', 'boidSizeVal');
+        setupSlider('trailLength', 'trailLength', 'trailLengthVal');
+        setupSlider('trailOpacity', 'trailOpacity', 'trailOpacityVal');
+
+        // Select elements
+        document.getElementById('mouseMode').addEventListener('change', (e) => {
+            settings.mouseMode = e.target.value;
+        });
+
+        document.getElementById('colorMode').addEventListener('change', (e) => {
+            settings.colorMode = e.target.value;
+        });
+
+        document.getElementById('timeOfDay').addEventListener('change', (e) => {
+            settings.timeOfDay = e.target.value;
+        });
+
+        // 3D Mode controls
+        document.getElementById('mode3D').addEventListener('change', (e) => {
+            settings.mode3D = e.target.checked;
+
+            // Show/hide 3D help text and camera controls
+            document.getElementById('help3D').style.display = e.target.checked ? 'inline' : 'none';
+            document.getElementById('cameraControls').style.display = e.target.checked ? 'block' : 'none';
+
+            // Reset camera when entering 3D mode
+            camera.x = 0;
+            camera.y = 0;
+            camera.z = 0;
+            camera.yaw = 0;
+            camera.pitch = 0;
+
+            // Re-randomize z positions when entering 3D mode
+            if (e.target.checked) {
+                for (const boid of boids) {
+                    boid.pos3D = vec3(boid.pos.x, boid.pos.y, (Math.random() - 0.5) * settings.depthRange);
+                    const speed = vec3Mag(boid.vel3D) || settings.maxSpeed * 0.5;
+                    const angle = vecAngle(boid.vel);
+                    boid.vel3D = vec3(
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed,
+                        (Math.random() - 0.5) * speed * 0.3
+                    );
+                }
+                for (const pred of predators) {
+                    pred.pos3D = vec3(pred.pos.x, pred.pos.y, (Math.random() - 0.5) * settings.depthRange);
+                    const speed = vec3Mag(pred.vel3D) || settings.maxSpeed * 0.5;
+                    const angle = vecAngle(pred.vel);
+                    pred.vel3D = vec3(
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed,
+                        (Math.random() - 0.5) * speed * 0.3
+                    );
+                }
+            }
+        });
+
+        document.getElementById('depthRange').addEventListener('input', (e) => {
+            settings.depthRange = parseInt(e.target.value);
+            document.getElementById('depthRangeVal').textContent = e.target.value;
+        });
+
+        document.getElementById('cameraSpeed').addEventListener('input', (e) => {
+            camera.moveSpeed = parseInt(e.target.value);
+            document.getElementById('cameraSpeedVal').textContent = e.target.value;
+        });
+
+        document.getElementById('resetCamera').addEventListener('click', () => {
+            camera.x = 0;
+            camera.y = 0;
+            camera.z = 0;
+            camera.yaw = 0;
+            camera.pitch = 0;
+        });
+
+        // Checkboxes
+        document.getElementById('predatorEnabled').addEventListener('change', (e) => {
+            settings.predatorEnabled = e.target.checked;
+            if (e.target.checked) {
+                for (let i = 0; i < settings.predatorCount; i++) {
+                    predators.push(new Boid(
+                        Math.random() * canvas.width,
+                        Math.random() * canvas.height,
+                        true
+                    ));
+                }
+            } else {
+                predators = [];
+            }
+        });
+
+        document.getElementById('respawnPrey').addEventListener('change', (e) => {
+            settings.respawnPrey = e.target.checked;
+        });
+
+        document.getElementById('drawMode').addEventListener('change', (e) => {
+            settings.drawMode = e.target.checked;
+        });
+
+        document.getElementById('showTrails').addEventListener('change', (e) => {
+            settings.showTrails = e.target.checked;
+            if (!e.target.checked) {
+                for (const boid of boids) {
+                    boid.trail = [];
+                }
+            }
+        });
+
+        // Color pickers
+        document.getElementById('boidColor').addEventListener('input', (e) => {
+            settings.boidColor = e.target.value;
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            settings.bgColor = e.target.value;
+        });
+
+        document.getElementById('wallColor').addEventListener('input', (e) => {
+            settings.wallColor = e.target.value;
+        });
+
+        // Buttons
+        document.getElementById('undoWall').addEventListener('click', () => {
+            walls.pop();
+        });
+
+        document.getElementById('clearWalls').addEventListener('click', () => {
+            walls = [];
+        });
+
+        // Preset handling
+        document.getElementById('preset').addEventListener('change', (e) => {
+            settings.preset = e.target.value;
+            const cosmeticSettings = document.getElementById('cosmeticSettings');
+            const airplaneSettings = document.getElementById('airplaneSettings');
+
+            if (e.target.value === 'airplanes') {
+                cosmeticSettings.classList.add('disabled');
+                airplaneSettings.style.display = '';
+                initClouds();
+
+                // Reassign aircraft types
+                for (const boid of boids) {
+                    boid.aircraftType = boid.assignAircraftType();
+                    boid.contrailPoints = [];
+                }
+            } else {
+                cosmeticSettings.classList.remove('disabled');
+                airplaneSettings.style.display = 'none';
+            }
+        });
+
+        // Start
+        init();
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
