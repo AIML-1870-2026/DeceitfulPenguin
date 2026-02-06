@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turing Patterns Explorer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e12;
+    --panel-bg: #16161c;
+    --section-bg: #1c1c24;
+    --border: #2a2a36;
+    --text: #d4d4dc;
+    --text-dim: #8888a0;
+    --accent: #6c8aff;
+    --accent-glow: #6c8aff44;
+    --slider-track: #2a2a36;
+    --slider-thumb: #6c8aff;
+    --btn-bg: #242430;
+    --btn-hover: #303040;
+    --danger: #ff5c5c;
+    --success: #4cdf8a;
+    --panel-width: 340px;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+  }
+
+  #canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 0;
+  }
+
+  #sim-canvas {
+    image-rendering: pixelated;
+    cursor: crosshair;
+    border-radius: 4px;
+    box-shadow: 0 0 40px #00000080;
+  }
+
+  #canvas-overlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  .overlay-btn {
+    background: #000000aa;
+    backdrop-filter: blur(8px);
+    border: 1px solid #ffffff20;
+    color: #fff;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: background .15s;
+  }
+  .overlay-btn:hover { background: #ffffff30; }
+  .overlay-btn.active { background: var(--accent); border-color: var(--accent); }
+
+  #fps-counter {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: #000000aa;
+    backdrop-filter: blur(8px);
+    border: 1px solid #ffffff20;
+    color: #ffffffcc;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: monospace;
+    z-index: 10;
+  }
+
+  #brush-indicator {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    background: #000000aa;
+    backdrop-filter: blur(8px);
+    border: 1px solid #ffffff20;
+    color: #ffffffcc;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 10;
+  }
+
+  #sidebar {
+    width: var(--panel-width);
+    background: var(--panel-bg);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+    transition: margin-right .3s ease;
+  }
+
+  #sidebar.collapsed {
+    margin-right: calc(-1 * var(--panel-width));
+  }
+
+  #toggle-sidebar {
+    position: absolute;
+    top: 50%;
+    right: var(--panel-width);
+    transform: translateY(-50%);
+    z-index: 20;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-right: none;
+    color: var(--text-dim);
+    width: 24px;
+    height: 60px;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: right .3s ease, color .15s;
+  }
+  #toggle-sidebar:hover { color: var(--text); }
+  #toggle-sidebar.collapsed { right: 0; }
+
+  .panel-header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .panel-header p {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    transition: background .15s;
+  }
+  .section-header:hover { background: #ffffff06; }
+  .section-header h2 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .section-arrow {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform .2s;
+  }
+  .section.collapsed .section-arrow { transform: rotate(-90deg); }
+  .section-body {
+    padding: 4px 16px 16px;
+  }
+  .section.collapsed .section-body { display: none; }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .preset-btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all .15s;
+  }
+  .preset-btn:hover { background: var(--btn-hover); border-color: var(--accent); }
+  .preset-btn.active { background: var(--accent-glow); border-color: var(--accent); color: #fff; }
+  .preset-btn .preset-name { font-weight: 600; }
+  .preset-btn .preset-desc { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+  .param-group { margin-bottom: 12px; }
+  .param-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .param-label label {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .param-label .param-value {
+    font-size: 12px;
+    font-family: monospace;
+    color: var(--accent);
+    min-width: 50px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--slider-track);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all .15s;
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+  }
+  .btn:hover { background: var(--btn-hover); border-color: var(--accent); }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.accent:hover { filter: brightness(1.15); }
+
+  select {
+    width: 100%;
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .toggle-row label { font-size: 12px; }
+  .toggle-group {
+    display: flex;
+    gap: 2px;
+    background: var(--slider-track);
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .toggle-opt {
+    padding: 4px 10px;
+    font-size: 11px;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all .15s;
+  }
+  .toggle-opt.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .info-box {
+    background: var(--section-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .info-box strong { color: var(--text); }
+
+  #param-map {
+    width: 100%;
+    height: 120px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  .shortcut-list { list-style: none; }
+  .shortcut-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .shortcut-list kbd {
+    background: var(--btn-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  /* Model selector */
+  .model-select-wrap {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .model-select-wrap label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 6px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    #sidebar {
+      width: 100%;
+      max-height: 40vh;
+      border-left: none;
+      border-top: 1px solid var(--border);
+    }
+    #sidebar.collapsed { margin-right: 0; margin-bottom: -40vh; }
+    #toggle-sidebar {
+      right: 50%;
+      top: auto;
+      bottom: 40vh;
+      transform: translateX(50%);
+      width: 60px;
+      height: 24px;
+      border-radius: 8px 8px 0 0;
+      border: 1px solid var(--border);
+      border-bottom: none;
+    }
+    #toggle-sidebar.collapsed { bottom: 0; }
+    :root { --panel-width: 100%; }
+  }
+  /* Epilepsy Warning Overlay */
+  #epilepsy-warning {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #000000ee;
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #epilepsy-warning.hidden { display: none; }
+  .warning-box {
+    background: #1a1a24;
+    border: 1px solid #333;
+    border-radius: 12px;
+    max-width: 460px;
+    width: 90%;
+    padding: 32px 28px 28px;
+    position: relative;
+    box-shadow: 0 8px 40px #00000080;
+  }
+  .warning-close {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: none;
+    border: 1px solid #444;
+    color: #888;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+  }
+  .warning-close:hover { color: #fff; border-color: #888; }
+  .warning-icon {
+    text-align: center;
+    font-size: 40px;
+    margin-bottom: 16px;
+  }
+  .warning-title {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #f0c040;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .warning-text {
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #aaa;
+    margin-bottom: 24px;
+  }
+  .warning-btn {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter .15s;
+  }
+  .warning-btn:hover { filter: brightness(1.15); }
+</style>
+</head>
+<body>
+
+<!-- Epilepsy / Photosensitivity Warning -->
+<div id="epilepsy-warning">
+  <div class="warning-box">
+    <div class="warning-icon">&#9888;</div>
+    <div class="warning-title">Photosensitivity Warning</div>
+    <div class="warning-text">
+      This application contains rapidly changing patterns, flashing colors, and high-contrast visuals that may trigger seizures in people with photosensitive epilepsy or other photosensitivities. Viewer discretion is advised.
+    </div>
+    <button class="warning-btn" id="warning-accept">I Understand, Continue</button>
+  </div>
+</div>
+
+<div id="canvas-area">
+  <canvas id="sim-canvas" aria-label="Turing pattern reaction-diffusion simulation"></canvas>
+  <div id="canvas-overlay">
+    <button class="overlay-btn" id="btn-play" title="Play/Pause (Space)" aria-label="Play or Pause simulation">&#9654;</button>
+    <button class="overlay-btn" id="btn-step" title="Step Forward" aria-label="Step forward one iteration">&#9197;</button>
+    <button class="overlay-btn" id="btn-reset" title="Reset (R)" aria-label="Reset simulation">&#8634;</button>
+  </div>
+  <div id="fps-counter">-- FPS</div>
+  <div id="brush-indicator">Brush: 10px | Left-click: Seed V</div>
+</div>
+
+<button id="toggle-sidebar" title="Toggle panel" aria-label="Toggle control panel">&#9664;</button>
+
+<div id="sidebar">
+  <div class="panel-header">
+    <h1>Turing Patterns</h1>
+    <p id="panel-subtitle">Reaction-Diffusion Explorer</p>
+  </div>
+
+  <!-- Model Selector -->
+  <div class="model-select-wrap">
+    <label for="sel-model">Model</label>
+    <select id="sel-model" aria-label="Reaction-Diffusion Model">
+      <option value="grayscott">Gray-Scott</option>
+      <option value="brusselator">Brusselator</option>
+      <option value="schnakenberg">Schnakenberg</option>
+    </select>
+  </div>
+
+  <!-- Presets -->
+  <div class="section" id="sec-presets">
+    <div class="section-header" onclick="toggleSection('sec-presets')">
+      <h2>Presets</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="preset-grid" id="preset-grid"></div>
+    </div>
+  </div>
+
+  <!-- Parameters (dynamic) -->
+  <div class="section" id="sec-params">
+    <div class="section-header" onclick="toggleSection('sec-params')">
+      <h2>Parameters</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body" id="params-body"></div>
+  </div>
+
+  <!-- Simulation Controls -->
+  <div class="section" id="sec-sim">
+    <div class="section-header" onclick="toggleSection('sec-sim')">
+      <h2>Simulation</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="param-group">
+        <div class="param-label"><label>Speed</label><span class="param-value" id="val-speed">1.0x</span></div>
+        <input type="range" id="sl-speed" min="1" max="50" step="1" value="10" aria-label="Simulation Speed">
+      </div>
+      <div class="param-group">
+        <div class="param-label"><label>Timestep (dt)</label><span class="param-value" id="val-dt">1.00</span></div>
+        <input type="range" id="sl-dt" min="0.1" max="2.0" step="0.01" value="1.0" aria-label="Timestep">
+      </div>
+      <div class="param-group">
+        <div class="param-label"><label>Brush Size</label><span class="param-value" id="val-brush">10</span></div>
+        <input type="range" id="sl-brush" min="2" max="50" step="1" value="10" aria-label="Brush Size">
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-noise">Random Noise</button>
+        <button class="btn danger" id="btn-clear">Clear Grid</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visualization -->
+  <div class="section" id="sec-vis">
+    <div class="section-header" onclick="toggleSection('sec-vis')">
+      <h2>Visualization</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="param-group">
+        <div class="param-label"><label>Color Scheme</label></div>
+        <select id="sel-color" aria-label="Color Scheme">
+          <option value="grayscale">Grayscale</option>
+          <option value="heat">Heat Map</option>
+          <option value="viridis">Viridis</option>
+          <option value="inferno">Inferno</option>
+          <option value="plasma">Plasma</option>
+          <option value="ocean">Ocean</option>
+          <option value="sunset">Sunset</option>
+          <option value="ice">Ice</option>
+          <option value="neon">Neon</option>
+          <option value="lava">Lava</option>
+          <option value="toxic">Toxic</option>
+          <option value="custom">Green-Purple</option>
+        </select>
+      </div>
+      <div class="toggle-row">
+        <label>Show Chemical</label>
+        <div class="toggle-group" id="chem-toggle">
+          <button class="toggle-opt" data-val="U">U</button>
+          <button class="toggle-opt active" data-val="V">V</button>
+          <button class="toggle-opt" data-val="UV">Both</button>
+        </div>
+      </div>
+      <div class="param-group">
+        <div class="param-label"><label>Brightness</label><span class="param-value" id="val-bright">1.00</span></div>
+        <input type="range" id="sl-bright" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="Brightness">
+      </div>
+      <div class="param-group">
+        <div class="param-label"><label>Contrast</label><span class="param-value" id="val-contrast">1.00</span></div>
+        <input type="range" id="sl-contrast" min="0.5" max="2.0" step="0.05" value="1.0" aria-label="Contrast">
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid Settings -->
+  <div class="section" id="sec-grid">
+    <div class="section-header" onclick="toggleSection('sec-grid')">
+      <h2>Grid Settings</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="param-group">
+        <div class="param-label"><label>Grid Size</label></div>
+        <select id="sel-gridsize" aria-label="Grid Size">
+          <option value="128">128 x 128</option>
+          <option value="256" selected>256 x 256</option>
+          <option value="512">512 x 512</option>
+        </select>
+      </div>
+      <div class="toggle-row" style="margin-top:10px;">
+        <label>Boundary</label>
+        <div class="toggle-group" id="boundary-toggle">
+          <button class="toggle-opt active" data-val="periodic">Periodic</button>
+          <button class="toggle-opt" data-val="fixed">Fixed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save / Load -->
+  <div class="section" id="sec-save">
+    <div class="section-header" onclick="toggleSection('sec-save')">
+      <h2>Save / Load</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="btn-row">
+        <button class="btn accent" id="btn-save">Save Pattern (S)</button>
+        <button class="btn" id="btn-load-trigger">Load Pattern</button>
+      </div>
+      <input type="file" id="file-input" accept=".json" style="display:none" aria-label="Load pattern file">
+    </div>
+  </div>
+
+  <!-- Info -->
+  <div class="section" id="sec-info">
+    <div class="section-header" onclick="toggleSection('sec-info')">
+      <h2>How It Works</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="info-box" id="model-info"></div>
+      <canvas id="param-map" width="300" height="120" aria-label="Parameter space map"></canvas>
+      <div class="info-box" id="pattern-desc" style="margin-top:8px;">
+        <strong>Current:</strong> Select a preset or adjust parameters to explore.
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcuts -->
+  <div class="section collapsed" id="sec-keys">
+    <div class="section-header" onclick="toggleSection('sec-keys')">
+      <h2>Keyboard Shortcuts</h2>
+      <span class="section-arrow">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <ul class="shortcut-list">
+        <li><span>Play / Pause</span><kbd>Space</kbd></li>
+        <li><span>Reset</span><kbd>R</kbd></li>
+        <li><span>Save Pattern</span><kbd>S</kbd></li>
+        <li><span>Random Noise</span><kbd>N</kbd></li>
+        <li><span>Speed Up</span><kbd>+</kbd></li>
+        <li><span>Slow Down</span><kbd>-</kbd></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Model Definitions ──────────────────────────────────────────
+const MODELS = {
+  grayscott: {
+    name: 'Gray-Scott',
+    subtitle: 'Gray-Scott Reaction-Diffusion',
+    params: [
+      { id: 'F',  label: 'Feed Rate (F)',  tooltip: 'Rate at which U is added',     min: 0,    max: 0.1,  step: 0.001, default: 0.055 },
+      { id: 'k',  label: 'Kill Rate (k)',  tooltip: 'Rate at which V is removed',   min: 0,    max: 0.1,  step: 0.001, default: 0.062 },
+      { id: 'Du', label: 'Diffusion U',    tooltip: 'How fast U (inhibitor) diffuses', min: 0.01, max: 0.30, step: 0.01,  default: 0.20  },
+      { id: 'Dv', label: 'Diffusion V',    tooltip: 'How fast V (activator) diffuses', min: 0.01, max: 0.30, step: 0.01,  default: 0.08  },
+    ],
+    dtRange: { min: 0.5, max: 2.0, step: 0.05, default: 1.0 },
+    presets: [
+      { name: 'Spots',     symbol: 'α', desc: 'Stable spots that repel each other',  values: { F: 0.055, k: 0.062 } },
+      { name: 'Stripes',   symbol: 'β', desc: 'Parallel stripe patterns',            values: { F: 0.035, k: 0.065 } },
+      { name: 'Waves',     symbol: 'γ', desc: 'Traveling wave patterns',              values: { F: 0.014, k: 0.054 } },
+      { name: 'Coral',     symbol: 'δ', desc: 'Coral-like branching structures',      values: { F: 0.062, k: 0.061 } },
+      { name: 'Maze',      symbol: 'ε', desc: 'Labyrinth-like patterns',              values: { F: 0.029, k: 0.057 } },
+      { name: 'Spirals',   symbol: 'ζ', desc: 'Rotating spiral waves',               values: { F: 0.018, k: 0.051 } },
+      { name: 'Pulsating', symbol: 'η', desc: 'Spots that grow and shrink',           values: { F: 0.046, k: 0.065 } },
+      { name: 'Worms',     symbol: 'θ', desc: 'Writhing worm-like structures',        values: { F: 0.078, k: 0.061 } },
+    ],
+    initGrid(U, V, n) {
+      U.fill(1.0);
+      V.fill(0.0);
+      const cx = n >> 1, cy = n >> 1, r = Math.max(4, n >> 5);
+      for (let y = cy - r; y <= cy + r; y++)
+        for (let x = cx - r; x <= cx + r; x++)
+          if (x >= 0 && x < n && y >= 0 && y < n) {
+            const idx = y * n + x;
+            U[idx] = 0.5 + Math.random() * 0.1;
+            V[idx] = 0.25 + Math.random() * 0.1;
+          }
+      for (let s = 0; s < 5; s++) {
+        const sx = Math.floor(Math.random() * n), sy = Math.floor(Math.random() * n);
+        const sr = 2 + Math.floor(Math.random() * 3);
+        for (let y = sy - sr; y <= sy + sr; y++)
+          for (let x = sx - sr; x <= sx + sr; x++) {
+            const idx = ((y % n + n) % n) * n + ((x % n + n) % n);
+            U[idx] = 0.5 + Math.random() * 0.1;
+            V[idx] = 0.25 + Math.random() * 0.1;
+          }
+      }
+    },
+    clearGrid(U, V) { U.fill(1.0); V.fill(0.0); },
+    seedBrush(U, V, idx) { U[idx] = 0.0; V[idx] = 1.0; },
+    noiseSeed(U, V, idx) { U[idx] = 0.5 + Math.random() * 0.1; V[idx] = 0.25 + Math.random() * 0.1; },
+    simulate(n, p, U, V, U2, V2, periodic) {
+      for (let y = 0; y < n; y++) {
+        const ym = periodic ? ((y - 1 + n) % n) : Math.max(0, y - 1);
+        const yp = periodic ? ((y + 1) % n) : Math.min(n - 1, y + 1);
+        for (let x = 0; x < n; x++) {
+          const xm = periodic ? ((x - 1 + n) % n) : Math.max(0, x - 1);
+          const xp = periodic ? ((x + 1) % n) : Math.min(n - 1, x + 1);
+          const idx = y * n + x;
+          const lU = 0.05*U[ym*n+xm] + 0.2*U[ym*n+x] + 0.05*U[ym*n+xp]
+                   + 0.2 *U[y*n+xm]  - 1.0*U[idx]     + 0.2 *U[y*n+xp]
+                   + 0.05*U[yp*n+xm] + 0.2*U[yp*n+x] + 0.05*U[yp*n+xp];
+          const lV = 0.05*V[ym*n+xm] + 0.2*V[ym*n+x] + 0.05*V[ym*n+xp]
+                   + 0.2 *V[y*n+xm]  - 1.0*V[idx]     + 0.2 *V[y*n+xp]
+                   + 0.05*V[yp*n+xm] + 0.2*V[yp*n+x] + 0.05*V[yp*n+xp];
+          const uvv = U[idx] * V[idx] * V[idx];
+          U2[idx] = U[idx] + (p.Du * lU - uvv + p.F * (1.0 - U[idx])) * p.dt;
+          V2[idx] = V[idx] + (p.Dv * lV + uvv - (p.F + p.k) * V[idx]) * p.dt;
+          if (U2[idx] < 0) U2[idx] = 0; else if (U2[idx] > 1) U2[idx] = 1;
+          if (V2[idx] < 0) V2[idx] = 0; else if (V2[idx] > 1) V2[idx] = 1;
+        }
+      }
+    },
+    normalize: false,
+    info: '<strong>Gray-Scott</strong> models two chemicals U and V. U is continuously fed in while V is removed. Their nonlinear interaction U&middot;V&sup2; creates diverse patterns from spots to mazes depending on the feed rate F and kill rate k.',
+    mapAxes: ['F', 'k'],
+    mapRange: [[0, 0.1], [0, 0.1]],
+    mapZones: [
+      { x: 0.055, y: 0.062, label: 'Spots',   color: '#6c8aff33' },
+      { x: 0.035, y: 0.065, label: 'Stripes', color: '#ff8a6c33' },
+      { x: 0.029, y: 0.057, label: 'Maze',    color: '#8aff6c33' },
+      { x: 0.018, y: 0.051, label: 'Spirals', color: '#ff6ccc33' },
+      { x: 0.062, y: 0.061, label: 'Coral',   color: '#ffcc6c33' },
+    ],
+  },
+
+  brusselator: {
+    name: 'Brusselator',
+    subtitle: 'Brusselator Reaction-Diffusion',
+    params: [
+      { id: 'A',  label: 'Parameter A',  tooltip: 'Feed concentration',                  min: 0.5, max: 6.0,  step: 0.1,  default: 4.5 },
+      { id: 'B',  label: 'Parameter B',  tooltip: 'Reaction rate (Turing when B > 1+A²)', min: 1.0, max: 15.0, step: 0.1,  default: 8.0 },
+      { id: 'Du', label: 'Diffusion U',  tooltip: 'Activator diffusion rate',             min: 0.1, max: 5.0,  step: 0.1,  default: 1.0 },
+      { id: 'Dv', label: 'Diffusion V',  tooltip: 'Inhibitor diffusion rate (should be > Du)', min: 1.0, max: 30.0, step: 0.5, default: 8.0 },
+    ],
+    dtRange: { min: 0.002, max: 0.04, step: 0.001, default: 0.01 },
+    presets: [
+      { name: 'Spots',     symbol: 'α', desc: 'Hexagonal spot arrays',             values: { A: 4.5, B: 8.0, Du: 1.0, Dv: 8.0 } },
+      { name: 'Stripes',   symbol: 'β', desc: 'Labyrinthine stripe patterns',       values: { A: 3.0, B: 10.0, Du: 1.0, Dv: 12.0 } },
+      { name: 'Dense',     symbol: 'γ', desc: 'Dense small-scale patterns',          values: { A: 2.0, B: 5.5, Du: 1.0, Dv: 6.0 } },
+      { name: 'Waves',     symbol: 'δ', desc: 'Oscillating wave fronts',             values: { A: 1.0, B: 3.0, Du: 1.0, Dv: 4.0 } },
+      { name: 'Honeycomb', symbol: 'ε', desc: 'Regular honeycomb lattice',           values: { A: 4.5, B: 9.5, Du: 1.0, Dv: 10.0 } },
+      { name: 'Mixed',     symbol: 'ζ', desc: 'Spots mixed with short stripes',      values: { A: 3.5, B: 9.0, Du: 1.0, Dv: 9.0 } },
+    ],
+    initGrid(U, V, n, p) {
+      const u0 = p.A, v0 = p.B / p.A;
+      for (let i = 0; i < n * n; i++) {
+        U[i] = u0 + (Math.random() - 0.5) * 0.5;
+        V[i] = v0 + (Math.random() - 0.5) * 0.5;
+      }
+    },
+    clearGrid(U, V, p) {
+      const u0 = p.A, v0 = p.B / p.A;
+      U.fill(u0); V.fill(v0);
+    },
+    seedBrush(U, V, idx, p) {
+      U[idx] = p.A + (Math.random() - 0.5) * 2.0;
+      V[idx] = p.B / p.A + (Math.random() - 0.5) * 2.0;
+    },
+    noiseSeed(U, V, idx, p) {
+      U[idx] = p.A + (Math.random() - 0.5) * 1.0;
+      V[idx] = p.B / p.A + (Math.random() - 0.5) * 1.0;
+    },
+    simulate(n, p, U, V, U2, V2, periodic) {
+      for (let y = 0; y < n; y++) {
+        const ym = periodic ? ((y - 1 + n) % n) : Math.max(0, y - 1);
+        const yp = periodic ? ((y + 1) % n) : Math.min(n - 1, y + 1);
+        for (let x = 0; x < n; x++) {
+          const xm = periodic ? ((x - 1 + n) % n) : Math.max(0, x - 1);
+          const xp = periodic ? ((x + 1) % n) : Math.min(n - 1, x + 1);
+          const idx = y * n + x;
+          const lU = 0.05*U[ym*n+xm] + 0.2*U[ym*n+x] + 0.05*U[ym*n+xp]
+                   + 0.2 *U[y*n+xm]  - 1.0*U[idx]     + 0.2 *U[y*n+xp]
+                   + 0.05*U[yp*n+xm] + 0.2*U[yp*n+x] + 0.05*U[yp*n+xp];
+          const lV = 0.05*V[ym*n+xm] + 0.2*V[ym*n+x] + 0.05*V[ym*n+xp]
+                   + 0.2 *V[y*n+xm]  - 1.0*V[idx]     + 0.2 *V[y*n+xp]
+                   + 0.05*V[yp*n+xm] + 0.2*V[yp*n+x] + 0.05*V[yp*n+xp];
+          const u = U[idx], v = V[idx];
+          const u2v = u * u * v;
+          U2[idx] = u + (p.Du * lU + p.A - (p.B + 1) * u + u2v) * p.dt;
+          V2[idx] = v + (p.Dv * lV + p.B * u - u2v) * p.dt;
+        }
+      }
+    },
+    normalize: true,
+    info: '<strong>Brusselator</strong> is a theoretical model for autocatalytic reactions. Two parameters A and B control the dynamics. The steady state is U=A, V=B/A. Turing instability occurs roughly when B &gt; 1 + A&sup2; and the inhibitor (V) diffuses faster than the activator (U).',
+    mapAxes: ['A', 'B'],
+    mapRange: [[0.5, 6.0], [1.0, 15.0]],
+    mapZones: [
+      { x: 4.5, y: 8.0,  label: 'Spots',     color: '#6c8aff33' },
+      { x: 3.0, y: 10.0, label: 'Stripes',   color: '#ff8a6c33' },
+      { x: 2.0, y: 5.5,  label: 'Dense',     color: '#8aff6c33' },
+      { x: 3.5, y: 9.0,  label: 'Mixed',     color: '#ff6ccc33' },
+    ],
+  },
+
+  schnakenberg: {
+    name: 'Schnakenberg',
+    subtitle: 'Schnakenberg Reaction-Diffusion',
+    params: [
+      { id: 'a',  label: 'Parameter a',  tooltip: 'Source rate for U',                    min: 0.01, max: 0.5, step: 0.01, default: 0.1  },
+      { id: 'b',  label: 'Parameter b',  tooltip: 'Source rate for V',                    min: 0.5,  max: 3.0, step: 0.05, default: 0.9  },
+      { id: 'Du', label: 'Diffusion U',  tooltip: 'Activator diffusion rate',             min: 0.1,  max: 5.0, step: 0.1,  default: 1.0  },
+      { id: 'Dv', label: 'Diffusion V',  tooltip: 'Inhibitor diffusion (should be >> Du)', min: 5.0, max: 80.0, step: 1.0, default: 30.0 },
+    ],
+    dtRange: { min: 0.001, max: 0.02, step: 0.001, default: 0.005 },
+    presets: [
+      { name: 'Spots',    symbol: 'α', desc: 'Isolated spot pattern',              values: { a: 0.1, b: 0.9, Du: 1.0, Dv: 30.0 } },
+      { name: 'Stripes',  symbol: 'β', desc: 'Labyrinthine stripes',               values: { a: 0.1, b: 0.9, Du: 1.0, Dv: 15.0 } },
+      { name: 'Dense',    symbol: 'γ', desc: 'Dense fine-grained pattern',          values: { a: 0.05, b: 1.0, Du: 1.0, Dv: 40.0 } },
+      { name: 'Blobs',    symbol: 'δ', desc: 'Large organic blobs',                 values: { a: 0.2, b: 1.3, Du: 1.0, Dv: 50.0 } },
+      { name: 'Worms',    symbol: 'ε', desc: 'Worm-like connected structures',      values: { a: 0.15, b: 1.1, Du: 1.0, Dv: 20.0 } },
+      { name: 'Mixed',    symbol: 'ζ', desc: 'Mix of spots and short stripes',      values: { a: 0.1, b: 0.9, Du: 1.0, Dv: 22.0 } },
+    ],
+    initGrid(U, V, n, p) {
+      const u0 = p.a + p.b, v0 = p.b / ((p.a + p.b) * (p.a + p.b));
+      for (let i = 0; i < n * n; i++) {
+        U[i] = u0 + (Math.random() - 0.5) * 0.2;
+        V[i] = v0 + (Math.random() - 0.5) * 0.2;
+      }
+    },
+    clearGrid(U, V, p) {
+      const u0 = p.a + p.b, v0 = p.b / ((p.a + p.b) * (p.a + p.b));
+      U.fill(u0); V.fill(v0);
+    },
+    seedBrush(U, V, idx, p) {
+      const u0 = p.a + p.b;
+      U[idx] = u0 + (Math.random() - 0.5) * 1.0;
+      V[idx] = p.b / (u0 * u0) + (Math.random() - 0.5) * 0.5;
+    },
+    noiseSeed(U, V, idx, p) {
+      const u0 = p.a + p.b;
+      U[idx] = u0 + (Math.random() - 0.5) * 0.5;
+      V[idx] = p.b / (u0 * u0) + (Math.random() - 0.5) * 0.2;
+    },
+    simulate(n, p, U, V, U2, V2, periodic) {
+      for (let y = 0; y < n; y++) {
+        const ym = periodic ? ((y - 1 + n) % n) : Math.max(0, y - 1);
+        const yp = periodic ? ((y + 1) % n) : Math.min(n - 1, y + 1);
+        for (let x = 0; x < n; x++) {
+          const xm = periodic ? ((x - 1 + n) % n) : Math.max(0, x - 1);
+          const xp = periodic ? ((x + 1) % n) : Math.min(n - 1, x + 1);
+          const idx = y * n + x;
+          const lU = 0.05*U[ym*n+xm] + 0.2*U[ym*n+x] + 0.05*U[ym*n+xp]
+                   + 0.2 *U[y*n+xm]  - 1.0*U[idx]     + 0.2 *U[y*n+xp]
+                   + 0.05*U[yp*n+xm] + 0.2*U[yp*n+x] + 0.05*U[yp*n+xp];
+          const lV = 0.05*V[ym*n+xm] + 0.2*V[ym*n+x] + 0.05*V[ym*n+xp]
+                   + 0.2 *V[y*n+xm]  - 1.0*V[idx]     + 0.2 *V[y*n+xp]
+                   + 0.05*V[yp*n+xm] + 0.2*V[yp*n+x] + 0.05*V[yp*n+xp];
+          const u = U[idx], v = V[idx];
+          const u2v = u * u * v;
+          U2[idx] = u + (p.Du * lU + p.a - u + u2v) * p.dt;
+          V2[idx] = v + (p.Dv * lV + p.b - u2v) * p.dt;
+        }
+      }
+    },
+    normalize: true,
+    info: '<strong>Schnakenberg</strong> is a minimal activator-substrate model. Parameters a and b are source rates. The steady state is U=a+b, V=b/(a+b)&sup2;. Turing patterns emerge when the substrate (V) diffuses much faster than the activator (U).',
+    mapAxes: ['a', 'b'],
+    mapRange: [[0.01, 0.5], [0.5, 3.0]],
+    mapZones: [
+      { x: 0.1,  y: 0.9, label: 'Spots',   color: '#6c8aff33' },
+      { x: 0.1,  y: 0.9, label: 'Stripes', color: '#ff8a6c33' },
+      { x: 0.15, y: 1.1, label: 'Worms',   color: '#8aff6c33' },
+      { x: 0.2,  y: 1.3, label: 'Blobs',   color: '#ffcc6c33' },
+    ],
+  },
+};
+
+// ─── Color Schemes ───────────────────────────────────────────────
+function lerpScheme(c, t) {
+  const idx = t * (c.length - 1);
+  const i = Math.min(Math.floor(idx), c.length - 2);
+  const f = idx - i;
+  return [c[i][0]+(c[i+1][0]-c[i][0])*f, c[i][1]+(c[i+1][1]-c[i][1])*f, c[i][2]+(c[i+1][2]-c[i][2])*f];
+}
+
+const COLOR_SCHEMES = {
+  grayscale: t => [t*255, t*255, t*255],
+  heat: t => {
+    if (t < 0.25) return [0, t*4*255, 255];
+    if (t < 0.50) return [0, 255, (1-(t-0.25)*4)*255];
+    if (t < 0.75) return [(t-0.5)*4*255, 255, 0];
+    return [255, (1-(t-0.75)*4)*255, 0];
+  },
+  viridis:   t => lerpScheme([[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]], t),
+  custom:    t => lerpScheme([[40,0,60],[180,60,140],[255,255,255],[60,220,220],[0,140,60]], t),
+  inferno:   t => lerpScheme([[0,0,4],[40,11,84],[120,28,109],[212,72,66],[252,165,10],[252,255,164]], t),
+  plasma:    t => lerpScheme([[13,8,135],[126,3,168],[204,71,120],[248,149,64],[240,249,33]], t),
+  ocean:     t => lerpScheme([[2,0,36],[9,36,121],[0,105,148],[0,191,165],[144,224,180],[250,250,220]], t),
+  sunset:    t => lerpScheme([[20,0,40],[80,10,90],[170,30,80],[230,80,40],[255,170,50],[255,240,150]], t),
+  ice:       t => lerpScheme([[10,10,40],[20,50,120],[60,120,200],[150,200,240],[220,240,255],[255,255,255]], t),
+  neon:      t => lerpScheme([[0,0,0],[20,0,80],[0,200,255],[0,255,100],[255,255,0],[255,255,255]], t),
+  lava:      t => lerpScheme([[10,0,0],[80,0,0],[180,20,0],[255,100,0],[255,200,50],[255,255,200]], t),
+  toxic:     t => lerpScheme([[0,0,0],[0,40,0],[0,120,20],[80,200,0],[200,255,0],[255,255,180]], t),
+};
+
+// ─── State ───────────────────────────────────────────────────────
+let state = {
+  modelId: 'grayscott',
+  N: 256,
+  dt: 1.0,
+  speed: 10,
+  playing: true,
+  boundary: 'periodic',
+  colorScheme: 'grayscale',
+  showChem: 'V',
+  brightness: 1.0,
+  contrast: 1.0,
+  brushSize: 10,
+  activePreset: 0,
+  // Model-specific params stored flat
+  F: 0.055, k: 0.062, Du: 0.20, Dv: 0.08,
+  A: 4.5, B: 8.0,
+  a: 0.1, b: 0.9,
+};
+
+let U, V, U2, V2;
+let canvas, ctx, imgData;
+let paramMapCanvas, paramMapCtx;
+
+function model() { return MODELS[state.modelId]; }
+
+// ─── Gather current model params into an object ──────────────────
+function getParams() {
+  const m = model();
+  const p = { dt: state.dt };
+  m.params.forEach(def => { p[def.id] = state[def.id]; });
+  return p;
+}
+
+// ─── Initialization ──────────────────────────────────────────────
+function initGrids() {
+  const n = state.N, len = n * n;
+  U = new Float32Array(len);
+  V = new Float32Array(len);
+  U2 = new Float32Array(len);
+  V2 = new Float32Array(len);
+  model().initGrid(U, V, n, getParams());
+}
+
+function resizeCanvas() {
+  const area = document.getElementById('canvas-area');
+  const size = Math.min(area.clientWidth - 40, area.clientHeight - 40, 800);
+  canvas.width = state.N;
+  canvas.height = state.N;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  imgData = ctx.createImageData(state.N, state.N);
+}
+
+// ─── Simulation Step ─────────────────────────────────────────────
+function simulate() {
+  const n = state.N;
+  const periodic = state.boundary === 'periodic';
+  model().simulate(n, getParams(), U, V, U2, V2, periodic);
+  const tmpU = U; U = U2; U2 = tmpU;
+  const tmpV = V; V = V2; V2 = tmpV;
+}
+
+// ─── Rendering ───────────────────────────────────────────────────
+function render() {
+  const n = state.N;
+  const data = imgData.data;
+  const colorFn = COLOR_SCHEMES[state.colorScheme];
+  const bright = state.brightness;
+  const cont = state.contrast;
+  const shouldNormalize = model().normalize;
+  const len = n * n;
+
+  // Choose source array(s)
+  let src;
+  if (state.showChem === 'V') {
+    src = new Float32Array(len);
+    for (let i = 0; i < len; i++) src[i] = V[i];
+  } else if (state.showChem === 'U') {
+    src = new Float32Array(len);
+    for (let i = 0; i < len; i++) src[i] = U[i];
+  } else {
+    src = new Float32Array(len);
+    for (let i = 0; i < len; i++) src[i] = (U[i] + V[i]) * 0.5;
+  }
+
+  // Normalize for models with unbounded values
+  if (shouldNormalize) {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < len; i++) {
+      if (src[i] < lo) lo = src[i];
+      if (src[i] > hi) hi = src[i];
+    }
+    const range = hi - lo || 1;
+    for (let i = 0; i < len; i++) src[i] = (src[i] - lo) / range;
+  } else {
+    // Gray-Scott: invert U for display
+    if (state.showChem === 'U') {
+      for (let i = 0; i < len; i++) src[i] = 1.0 - src[i];
+    }
+  }
+
+  for (let i = 0; i < len; i++) {
+    let t = src[i];
+    t = ((t - 0.5) * cont + 0.5) * bright;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    const [r, g, b] = colorFn(t);
+    const pi = i << 2;
+    data[pi] = r; data[pi+1] = g; data[pi+2] = b; data[pi+3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// ─── Parameter Space Mini-Map ────────────────────────────────────
+function drawParamMap() {
+  const c = paramMapCtx;
+  const w = paramMapCanvas.width, h = paramMapCanvas.height;
+  const m = model();
+
+  c.fillStyle = '#1c1c24';
+  c.fillRect(0, 0, w, h);
+
+  const [axX, axY] = m.mapAxes;
+  const [[x0, x1], [y0, y1]] = m.mapRange;
+  const mapX = v => ((v - x0) / (x1 - x0)) * w;
+  const mapY = v => (1 - (v - y0) / (y1 - y0)) * h;
+
+  // Turing instability boundary for Brusselator: B = 1 + A²
+  if (state.modelId === 'brusselator') {
+    c.strokeStyle = '#ffffff18';
+    c.lineWidth = 1;
+    c.beginPath();
+    for (let a = x0; a <= x1; a += 0.05) {
+      const bCrit = 1 + a * a;
+      const px = mapX(a), py = mapY(bCrit);
+      if (a === x0) c.moveTo(px, py); else c.lineTo(px, py);
+    }
+    c.stroke();
+    c.fillStyle = '#ffffff10';
+    c.font = '8px sans-serif';
+    c.textAlign = 'left';
+    c.fillText('B=1+A²', 4, mapY(1 + x0 * x0) - 4);
+  }
+
+  (m.mapZones || []).forEach(z => {
+    const px = mapX(z.x), py = mapY(z.y);
+    c.fillStyle = z.color;
+    c.beginPath();
+    c.arc(px, py, 18, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#888';
+    c.font = '9px sans-serif';
+    c.textAlign = 'center';
+    c.fillText(z.label, px, py + 22);
+  });
+
+  c.fillStyle = '#666';
+  c.font = '10px sans-serif';
+  c.textAlign = 'left';
+  c.fillText(axX + ' →', 4, h - 4);
+  c.textAlign = 'right';
+  c.fillText('↑ ' + axY, w - 4, 14);
+
+  const cx = mapX(state[axX]), cy = mapY(state[axY]);
+  c.strokeStyle = '#fff';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.arc(cx, cy, 6, 0, Math.PI * 2);
+  c.stroke();
+  c.fillStyle = '#6c8aff';
+  c.beginPath();
+  c.arc(cx, cy, 3, 0, Math.PI * 2);
+  c.fill();
+}
+
+// ─── Dynamic UI ──────────────────────────────────────────────────
+function buildParamSliders() {
+  const body = document.getElementById('params-body');
+  body.innerHTML = '';
+  const m = model();
+  m.params.forEach(def => {
+    const val = state[def.id] !== undefined ? state[def.id] : def.default;
+    state[def.id] = val;
+    const decimals = def.step < 0.01 ? 3 : def.step < 0.1 ? 2 : (def.step < 1 ? (def.step >= 0.5 ? 1 : String(def.step).split('.')[1]?.length || 1) : 0);
+    const formatDecimals = def.step < 0.01 ? 3 : def.step < 0.1 ? 2 : 1;
+
+    const group = document.createElement('div');
+    group.className = 'param-group';
+    group.innerHTML = `
+      <div class="param-label">
+        <label title="${def.tooltip}">${def.label}</label>
+        <span class="param-value" id="val-${def.id}">${parseFloat(val).toFixed(formatDecimals)}</span>
+      </div>
+      <input type="range" id="sl-${def.id}" min="${def.min}" max="${def.max}" step="${def.step}" value="${val}" aria-label="${def.label}">
+    `;
+    body.appendChild(group);
+
+    const sl = group.querySelector('input');
+    const valSpan = group.querySelector('.param-value');
+    sl.addEventListener('input', () => {
+      state[def.id] = parseFloat(sl.value);
+      valSpan.textContent = parseFloat(sl.value).toFixed(formatDecimals);
+      state.activePreset = -1;
+      highlightPreset();
+      drawParamMap();
+    });
+  });
+}
+
+function buildPresets() {
+  const grid = document.getElementById('preset-grid');
+  grid.innerHTML = '';
+  const m = model();
+  m.presets.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (i === state.activePreset ? ' active' : '');
+    btn.innerHTML = `<div class="preset-name">${p.symbol} ${p.name}</div><div class="preset-desc">${p.desc}</div>`;
+    btn.onclick = () => applyPreset(i);
+    btn.setAttribute('aria-label', `Preset: ${p.name} - ${p.desc}`);
+    grid.appendChild(btn);
+  });
+}
+
+function applyPreset(i) {
+  const m = model();
+  const p = m.presets[i];
+  state.activePreset = i;
+
+  Object.entries(p.values).forEach(([key, val]) => {
+    state[key] = val;
+    const sl = document.getElementById('sl-' + key);
+    const valSpan = document.getElementById('val-' + key);
+    if (sl) {
+      sl.value = val;
+      const def = m.params.find(d => d.id === key);
+      const fmt = def && def.step < 0.01 ? 3 : def && def.step < 0.1 ? 2 : 1;
+      if (valSpan) valSpan.textContent = parseFloat(val).toFixed(fmt);
+    }
+  });
+
+  document.getElementById('pattern-desc').innerHTML =
+    `<strong>${p.name}:</strong> ${p.desc}`;
+
+  highlightPreset();
+  drawParamMap();
+}
+
+function highlightPreset() {
+  document.querySelectorAll('.preset-btn').forEach((btn, j) => {
+    btn.classList.toggle('active', j === state.activePreset);
+  });
+}
+
+function switchModel(modelId) {
+  state.modelId = modelId;
+  const m = model();
+
+  // Set defaults for all params
+  m.params.forEach(def => {
+    if (state[def.id] === undefined) state[def.id] = def.default;
+  });
+
+  // Update dt range
+  const dtDef = m.dtRange;
+  state.dt = dtDef.default;
+  const dtSl = document.getElementById('sl-dt');
+  dtSl.min = dtDef.min;
+  dtSl.max = dtDef.max;
+  dtSl.step = dtDef.step;
+  dtSl.value = dtDef.default;
+  document.getElementById('val-dt').textContent = dtDef.default.toFixed(dtDef.step < 0.01 ? 3 : 2);
+
+  // Update subtitle
+  document.getElementById('panel-subtitle').textContent = m.subtitle;
+
+  // Rebuild dynamic UI
+  buildParamSliders();
+  state.activePreset = 0;
+  buildPresets();
+  applyPreset(0);
+
+  // Update info
+  document.getElementById('model-info').innerHTML = m.info;
+
+  // Re-init simulation
+  initGrids();
+  resizeCanvas();
+  drawParamMap();
+  render();
+}
+
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+function wireUI() {
+  // Speed slider
+  const slSpeed = document.getElementById('sl-speed');
+  const valSpeed = document.getElementById('val-speed');
+  slSpeed.addEventListener('input', () => {
+    state.speed = parseInt(slSpeed.value);
+    valSpeed.textContent = (state.speed / 10).toFixed(1) + 'x';
+  });
+
+  // dt slider
+  const slDt = document.getElementById('sl-dt');
+  const valDt = document.getElementById('val-dt');
+  slDt.addEventListener('input', () => {
+    state.dt = parseFloat(slDt.value);
+    const m = model();
+    valDt.textContent = state.dt.toFixed(m.dtRange.step < 0.01 ? 3 : 2);
+  });
+
+  // Brush slider
+  const slBrush = document.getElementById('sl-brush');
+  const valBrush = document.getElementById('val-brush');
+  slBrush.addEventListener('input', () => {
+    state.brushSize = parseInt(slBrush.value);
+    valBrush.textContent = state.brushSize;
+    document.getElementById('brush-indicator').textContent = `Brush: ${state.brushSize}px | Left-click: Seed V`;
+  });
+
+  // Brightness / contrast
+  const slBright = document.getElementById('sl-bright');
+  const valBright = document.getElementById('val-bright');
+  slBright.addEventListener('input', () => {
+    state.brightness = parseFloat(slBright.value);
+    valBright.textContent = state.brightness.toFixed(2);
+  });
+  const slContrast = document.getElementById('sl-contrast');
+  const valContrast = document.getElementById('val-contrast');
+  slContrast.addEventListener('input', () => {
+    state.contrast = parseFloat(slContrast.value);
+    valContrast.textContent = state.contrast.toFixed(2);
+  });
+
+  document.getElementById('sel-color').onchange = e => { state.colorScheme = e.target.value; };
+  document.getElementById('sel-gridsize').onchange = e => {
+    state.N = parseInt(e.target.value);
+    initGrids();
+    resizeCanvas();
+  };
+
+  // Model selector
+  document.getElementById('sel-model').onchange = e => {
+    switchModel(e.target.value);
+  };
+
+  // Toggle groups
+  document.getElementById('chem-toggle').onclick = e => {
+    const btn = e.target.closest('.toggle-opt');
+    if (!btn) return;
+    document.querySelectorAll('#chem-toggle .toggle-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.showChem = btn.dataset.val;
+  };
+  document.getElementById('boundary-toggle').onclick = e => {
+    const btn = e.target.closest('.toggle-opt');
+    if (!btn) return;
+    document.querySelectorAll('#boundary-toggle .toggle-opt').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.boundary = btn.dataset.val;
+  };
+
+  // Buttons
+  document.getElementById('btn-play').onclick = togglePlay;
+  document.getElementById('btn-step').onclick = () => { simulate(); render(); };
+  document.getElementById('btn-reset').onclick = () => { initGrids(); render(); };
+  document.getElementById('btn-noise').onclick = addNoise;
+  document.getElementById('btn-clear').onclick = () => {
+    model().clearGrid(U, V, getParams());
+    render();
+  };
+  document.getElementById('btn-save').onclick = savePattern;
+  document.getElementById('btn-load-trigger').onclick = () => document.getElementById('file-input').click();
+  document.getElementById('file-input').onchange = loadPattern;
+
+  // Sidebar toggle
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('toggle-sidebar');
+  toggleBtn.onclick = () => {
+    sidebar.classList.toggle('collapsed');
+    toggleBtn.classList.toggle('collapsed');
+    toggleBtn.innerHTML = sidebar.classList.contains('collapsed') ? '&#9654;' : '&#9664;';
+    setTimeout(resizeCanvas, 350);
+  };
+
+  // Param map click — sets first two params
+  paramMapCanvas.onclick = e => {
+    const m = model();
+    const [axX, axY] = m.mapAxes;
+    const [[x0, x1], [y0, y1]] = m.mapRange;
+    const rect = paramMapCanvas.getBoundingClientRect();
+    const fx = (e.clientX - rect.left) / rect.width;
+    const fy = (e.clientY - rect.top) / rect.height;
+    state[axX] = Math.max(x0, Math.min(x1, x0 + fx * (x1 - x0)));
+    state[axY] = Math.max(y0, Math.min(y1, y0 + (1 - fy) * (y1 - y0)));
+
+    // Update sliders
+    const slX = document.getElementById('sl-' + axX);
+    const slY = document.getElementById('sl-' + axY);
+    const vX = document.getElementById('val-' + axX);
+    const vY = document.getElementById('val-' + axY);
+    if (slX) { slX.value = state[axX]; const d = m.params.find(p=>p.id===axX); vX.textContent = state[axX].toFixed(d.step<0.01?3:d.step<0.1?2:1); }
+    if (slY) { slY.value = state[axY]; const d = m.params.find(p=>p.id===axY); vY.textContent = state[axY].toFixed(d.step<0.01?3:d.step<0.1?2:1); }
+    state.activePreset = -1;
+    highlightPreset();
+    drawParamMap();
+  };
+}
+
+function togglePlay() {
+  state.playing = !state.playing;
+  document.getElementById('btn-play').innerHTML = state.playing ? '&#10074;&#10074;' : '&#9654;';
+  document.getElementById('btn-play').classList.toggle('active', state.playing);
+}
+
+function addNoise() {
+  const n = state.N;
+  const m = model();
+  const p = getParams();
+  for (let i = 0; i < n * n * 0.01; i++) {
+    const x = Math.floor(Math.random() * n);
+    const y = Math.floor(Math.random() * n);
+    const r = 2 + Math.floor(Math.random() * 4);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const idx = ((y + dy + n) % n) * n + ((x + dx + n) % n);
+        m.noiseSeed(U, V, idx, p);
+      }
+    }
+  }
+}
+
+// ─── Mouse Interaction ───────────────────────────────────────────
+function setupMouse() {
+  let painting = false;
+
+  function paint(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = state.N / rect.width;
+    const scaleY = state.N / rect.height;
+    const mx = Math.floor((e.clientX - rect.left) * scaleX);
+    const my = Math.floor((e.clientY - rect.top) * scaleY);
+    const r = state.brushSize;
+    const n = state.N;
+    const m = model();
+    const p = getParams();
+
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const idx = ((my + dy + n) % n) * n + ((mx + dx + n) % n);
+        m.seedBrush(U, V, idx, p);
+      }
+    }
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) { painting = true; paint(e); }
+  });
+  canvas.addEventListener('mousemove', e => { if (painting) paint(e); });
+  window.addEventListener('mouseup', () => { painting = false; });
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); painting = true; paint(e.touches[0]); }, { passive: false });
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if (painting) paint(e.touches[0]); }, { passive: false });
+  canvas.addEventListener('touchend', () => { painting = false; });
+}
+
+// ─── Keyboard Shortcuts ──────────────────────────────────────────
+function setupKeys() {
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    switch (e.key) {
+      case ' ':
+        e.preventDefault();
+        togglePlay();
+        break;
+      case 'r': case 'R':
+        initGrids(); render();
+        break;
+      case 's': case 'S':
+        savePattern();
+        break;
+      case 'n': case 'N':
+        addNoise();
+        break;
+      case '+': case '=':
+        state.speed = Math.min(50, state.speed + 2);
+        document.getElementById('sl-speed').value = state.speed;
+        document.getElementById('val-speed').textContent = (state.speed / 10).toFixed(1) + 'x';
+        break;
+      case '-': case '_':
+        state.speed = Math.max(1, state.speed - 2);
+        document.getElementById('sl-speed').value = state.speed;
+        document.getElementById('val-speed').textContent = (state.speed / 10).toFixed(1) + 'x';
+        break;
+    }
+  });
+}
+
+// ─── Save / Load ─────────────────────────────────────────────────
+function savePattern() {
+  const toBase64 = (arr) => {
+    const bytes = new Uint8Array(arr.buffer.slice(0));
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  };
+
+  const m = model();
+  const params = {};
+  m.params.forEach(def => { params[def.id] = state[def.id]; });
+  params.gridSize = state.N;
+  params.boundaryMode = state.boundary;
+
+  const payload = {
+    version: '1.1',
+    timestamp: new Date().toISOString(),
+    model: state.modelId,
+    parameters: params,
+    state: { U: toBase64(U), V: toBase64(V) },
+    metadata: {
+      preset: state.activePreset >= 0 ? m.presets[state.activePreset].name.toLowerCase() : 'custom',
+    }
+  };
+
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `turing-pattern-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function loadPattern(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+
+      // Switch model if specified
+      if (data.model && MODELS[data.model]) {
+        state.modelId = data.model;
+        document.getElementById('sel-model').value = data.model;
+      }
+
+      if (data.parameters) {
+        Object.entries(data.parameters).forEach(([key, val]) => {
+          if (key === 'gridSize') state.N = val;
+          else if (key === 'boundaryMode') state.boundary = val;
+          else state[key] = val;
+        });
+        document.getElementById('sel-gridsize').value = state.N;
+      }
+
+      // Rebuild UI for model
+      const m = model();
+      document.getElementById('panel-subtitle').textContent = m.subtitle;
+      buildParamSliders();
+      buildPresets();
+      document.getElementById('model-info').innerHTML = m.info;
+
+      // Update dt slider
+      const dtSl = document.getElementById('sl-dt');
+      dtSl.min = m.dtRange.min;
+      dtSl.max = m.dtRange.max;
+      dtSl.step = m.dtRange.step;
+      dtSl.value = state.dt || m.dtRange.default;
+
+      if (data.state && data.state.U && data.state.V) {
+        const fromBase64 = (b64) => {
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new Float32Array(bytes.buffer);
+        };
+        const loadedU = fromBase64(data.state.U);
+        const loadedV = fromBase64(data.state.V);
+        if (loadedU.length === state.N * state.N) {
+          U = loadedU; V = loadedV;
+          U2 = new Float32Array(state.N * state.N);
+          V2 = new Float32Array(state.N * state.N);
+        }
+      }
+
+      resizeCanvas();
+      drawParamMap();
+      render();
+    } catch (err) {
+      console.error('Failed to load pattern:', err);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── Main Loop ───────────────────────────────────────────────────
+let fpsFrames = 0, fpsTime = 0;
+
+function mainLoop(timestamp) {
+  requestAnimationFrame(mainLoop);
+  fpsFrames++;
+  if (timestamp - fpsTime >= 1000) {
+    document.getElementById('fps-counter').textContent = fpsFrames + ' FPS';
+    fpsFrames = 0;
+    fpsTime = timestamp;
+  }
+  if (!state.playing) return;
+  const steps = state.speed;
+  for (let i = 0; i < steps; i++) simulate();
+  render();
+}
+
+// ─── Boot ────────────────────────────────────────────────────────
+function dismissWarning() {
+  document.getElementById('epilepsy-warning').classList.add('hidden');
+  startApp();
+}
+
+function startApp() {
+  canvas = document.getElementById('sim-canvas');
+  ctx = canvas.getContext('2d');
+  paramMapCanvas = document.getElementById('param-map');
+  paramMapCtx = paramMapCanvas.getContext('2d');
+
+  wireUI();
+  setupMouse();
+  setupKeys();
+
+  switchModel('grayscott');
+
+  document.getElementById('btn-play').innerHTML = '&#10074;&#10074;';
+  document.getElementById('btn-play').classList.add('active');
+  requestAnimationFrame(mainLoop);
+  window.addEventListener('resize', resizeCanvas);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('warning-accept').onclick = dismissWarning;
+});
+</script>
+</body>
+</html>
