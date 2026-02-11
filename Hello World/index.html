@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeceitfulPenguin's Personal Page</title>
+    <!-- Updated -->
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Indie+Flower&family=Dancing+Script:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Indie Flower', cursive;
+            background: #8b7355;
+            background-image:
+                repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(139, 115, 85, 0.3) 2px,
+                    rgba(139, 115, 85, 0.3) 4px
+                );
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            background: #faf8f3;
+            background-image:
+                repeating-linear-gradient(
+                    transparent,
+                    transparent 31px,
+                    rgba(139, 115, 85, 0.15) 31px,
+                    rgba(139, 115, 85, 0.15) 32px
+                );
+            padding: 64px 60px;
+            box-shadow:
+                0 1px 1px rgba(0,0,0,0.15),
+                0 10px 20px rgba(0,0,0,0.2),
+                0 20px 40px rgba(0,0,0,0.15);
+            text-align: left;
+            max-width: 650px;
+            width: 100%;
+            border: 1px solid rgba(139, 115, 85, 0.2);
+            position: relative;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 60px;
+            width: 2px;
+            height: 100%;
+            background: rgba(255, 182, 193, 0.3);
+        }
+
+        h1 {
+            font-family: 'Dancing Script', cursive;
+            font-size: 3.2rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 0;
+            line-height: 64px;
+        }
+
+        .greeting {
+            font-family: 'Caveat', cursive;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #2c5282;
+            margin-bottom: 0;
+            margin-left: 40px;
+            line-height: 32px;
+        }
+
+        .intro {
+            font-family: 'Indie Flower', cursive;
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #1a202c;
+            line-height: 32px;
+            margin-bottom: 0;
+            text-indent: 40px;
+        }
+
+        .highlight {
+            font-family: 'Caveat', cursive;
+            font-size: 1.3rem;
+            font-weight: 400;
+            color: #2c5282;
+            margin-top: 0;
+            margin-left: 60%;
+            line-height: 32px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 20px 10px;
+            }
+
+            .container {
+                padding: 50px 30px;
+            }
+
+            .container::before {
+                left: 30px;
+            }
+
+            h1 {
+                font-size: 2.8rem;
+            }
+
+            .greeting {
+                font-size: 1.8rem;
+                margin-left: 20px;
+            }
+
+            .intro {
+                font-size: 1.2rem;
+                line-height: 2;
+                text-indent: 20px;
+            }
+
+            .highlight {
+                font-size: 1.4rem;
+                margin-left: 40%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DeceitfulPenguin</h1>
+        <p class="greeting">Hello World</p>
+        <p class="intro">
+            Welcome to my personal page! I'm excited to share this space with you.
+            This is a simple webpage showcasing different typography styles and clean design.
+        </p>
+        <p class="highlight">
+            Thanks for stopping by!
+        </p>
+    </div>
+</body>
+</html>
