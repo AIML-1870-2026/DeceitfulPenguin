@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Neuron: Should I Go Flying Today?</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel-bg: #1a1d27;
+    --panel-border: #2a2d3a;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-blue: #3b82f6;
+    --accent-yellow: #eab308;
+    --slider-track: #2a2d3a;
+    --slider-fill: #3b82f6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 24px 16px 8px;
+  }
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header p {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    gap: 16px;
+    padding: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 90px);
+  }
+
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .panel-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  /* --- Sliders Panel --- */
+  .slider-group {
+    margin-bottom: 20px;
+  }
+  .slider-group:last-of-type { margin-bottom: 0; }
+
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .slider-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .slider-value {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slider-descriptor {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    height: 16px;
+  }
+
+  .slider-container {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    margin: 8px 0;
+  }
+  .slider-container input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--slider-track);
+    outline: none;
+    cursor: pointer;
+  }
+  .slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+    cursor: grab;
+    transition: transform 0.15s;
+  }
+  .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+  .slider-container input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+    cursor: grab;
+  }
+  .slider-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    padding: 0 2px;
+  }
+
+  .contribution-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-top: 6px;
+    background: var(--slider-track);
+    overflow: hidden;
+  }
+  .contribution-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s, background 0.3s;
+  }
+
+  /* Bias slider special styling */
+  .bias-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .bias-section input[type="range"]::-webkit-slider-thumb {
+    background: var(--accent-yellow);
+    box-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+  }
+  .bias-section input[type="range"]::-moz-range-thumb {
+    background: var(--accent-yellow);
+    box-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
+  }
+  .bias-section .slider-value {
+    color: var(--accent-yellow);
+  }
+
+  /* --- Neuron Canvas Panel --- */
+  .neuron-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  #neuronCanvas {
+    width: 100%;
+    max-width: 600px;
+    border-radius: 8px;
+  }
+
+  /* --- Decision Display --- */
+  .decision-display {
+    text-align: center;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .decision-display canvas {
+    display: block;
+    margin: 0 auto;
+  }
+  .decision-text {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-top: 8px;
+    transition: color 0.4s;
+  }
+  .decision-probability {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* --- Math Panel --- */
+  .math-panel {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    overflow-y: auto;
+  }
+
+  .math-step {
+    margin-bottom: 14px;
+  }
+  .math-step-title {
+    font-weight: 700;
+    color: var(--accent-blue);
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+  }
+  .math-step-divider {
+    border: none;
+    border-top: 1px solid var(--panel-border);
+    margin: 2px 0 6px;
+  }
+  .math-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 1px 0;
+  }
+  .math-line .label { color: var(--text-dim); }
+  .math-line .value { font-weight: 600; }
+  .math-line .value.negative { color: var(--accent-red); }
+  .math-line .value.positive { color: var(--accent-green); }
+
+  .math-result {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 4px;
+    text-align: center;
+  }
+  .math-result .z-value {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .math-result .formula {
+    color: var(--text-dim);
+    font-size: 0.65rem;
+  }
+
+  .math-decision {
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-top: 8px;
+  }
+  .math-decision.go {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .math-decision.nogo {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--accent-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  /* Sigmoid mini-graph */
+  .sigmoid-graph {
+    margin-top: 8px;
+    text-align: center;
+  }
+  .sigmoid-graph canvas {
+    border-radius: 6px;
+    background: var(--bg);
+  }
+
+  /* --- Weight Justification --- */
+  .weight-justification {
+    margin-top: 12px;
+  }
+  .weight-toggle {
+    background: none;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.72rem;
+    width: 100%;
+    text-align: left;
+    transition: background 0.2s;
+  }
+  .weight-toggle:hover {
+    background: var(--panel-border);
+  }
+  .weight-toggle:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+  }
+  .weight-details {
+    display: none;
+    margin-top: 8px;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+  .weight-details.open { display: block; }
+  .weight-item {
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .weight-item strong {
+    color: var(--text);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* --- Preset Buttons --- */
+  .presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .preset-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 6px 8px;
+    font-size: 0.68rem;
+    border: 1px solid var(--panel-border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+  .preset-btn:hover {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+  }
+  .preset-btn:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+  }
+
+  /* --- Responsive --- */
+  @media (max-width: 1100px) {
+    .main-layout {
+      grid-template-columns: 1fr;
+      max-width: 600px;
+    }
+    .neuron-panel { order: -1; }
+  }
+
+  /* --- Accessibility --- High contrast toggle */
+  .a11y-toggle {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    cursor: pointer;
+    z-index: 10;
+  }
+  .a11y-toggle:hover { background: var(--panel-border); }
+  .a11y-toggle:focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+  }
+
+  body.high-contrast {
+    --bg: #000;
+    --panel-bg: #111;
+    --panel-border: #555;
+    --text: #fff;
+    --text-dim: #bbb;
+    --accent-green: #00ff88;
+    --accent-red: #ff4444;
+    --accent-blue: #66aaff;
+    --accent-yellow: #ffdd00;
+  }
+
+  /* Screen reader only */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<button class="a11y-toggle" onclick="document.body.classList.toggle('high-contrast')" aria-label="Toggle high contrast mode">High Contrast</button>
+
+<header>
+  <h1>Decision Neuron Simulator</h1>
+  <p>How does a single artificial neuron decide: "Should I go flying today?"</p>
+</header>
+
+<div class="main-layout">
+  <!-- LEFT: Input Sliders -->
+  <div class="panel" role="region" aria-label="Input factors">
+    <div class="panel-title">Input Factors</div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Wind Speed</span>
+        <span class="slider-value" id="windVal">8 kts</span>
+      </div>
+      <div class="slider-descriptor" id="windDesc">Calm</div>
+      <div class="slider-container">
+        <input type="range" id="windSlider" min="0" max="40" value="8" step="1"
+               aria-label="Wind Speed in knots" aria-valuemin="0" aria-valuemax="40" aria-valuenow="8">
+      </div>
+      <div class="slider-ticks"><span>0 kts</span><span>15</span><span>25</span><span>40 kts</span></div>
+      <div class="contribution-bar"><div class="contribution-bar-fill" id="windBar"></div></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Stress Level</span>
+        <span class="slider-value" id="stressVal">3</span>
+      </div>
+      <div class="slider-descriptor" id="stressDesc">Relaxed</div>
+      <div class="slider-container">
+        <input type="range" id="stressSlider" min="1" max="10" value="3" step="1"
+               aria-label="Personal stress level" aria-valuemin="1" aria-valuemax="10" aria-valuenow="3">
+      </div>
+      <div class="slider-ticks"><span>Relaxed</span><span>Moderate</span><span>Stressed</span><span>10</span></div>
+      <div class="contribution-bar"><div class="contribution-bar-fill" id="stressBar"></div></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Rental Price</span>
+        <span class="slider-value" id="priceVal">$175/hr</span>
+      </div>
+      <div class="slider-descriptor" id="priceDesc">Typical</div>
+      <div class="slider-container">
+        <input type="range" id="priceSlider" min="100" max="300" value="175" step="5"
+               aria-label="Aircraft rental price per hour" aria-valuemin="100" aria-valuemax="300" aria-valuenow="175">
+      </div>
+      <div class="slider-ticks"><span>$100</span><span>$175</span><span>$250</span><span>$300</span></div>
+      <div class="contribution-bar"><div class="contribution-bar-fill" id="priceBar"></div></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span class="slider-label">Airport Traffic</span>
+        <span class="slider-value" id="trafficVal">5 aircraft</span>
+      </div>
+      <div class="slider-descriptor" id="trafficDesc">Light</div>
+      <div class="slider-container">
+        <input type="range" id="trafficSlider" min="0" max="20" value="5" step="1"
+               aria-label="Number of other aircraft at airport" aria-valuemin="0" aria-valuemax="20" aria-valuenow="5">
+      </div>
+      <div class="slider-ticks"><span>Empty</span><span>Light</span><span>Moderate</span><span>Congested</span></div>
+      <div class="contribution-bar"><div class="contribution-bar-fill" id="trafficBar"></div></div>
+    </div>
+
+    <div class="bias-section">
+      <div class="slider-header">
+        <span class="slider-label">Pilot Inclination (Bias)</span>
+        <span class="slider-value" id="biasVal">0.0</span>
+      </div>
+      <div class="slider-descriptor" id="biasDesc">Neutral</div>
+      <div class="slider-container">
+        <input type="range" id="biasSlider" min="-3" max="3" value="0" step="0.1"
+               aria-label="Pilot flying inclination bias" aria-valuemin="-3" aria-valuemax="3" aria-valuenow="0">
+      </div>
+      <div class="slider-ticks"><span>Reluctant</span><span>Neutral</span><span>Eager</span></div>
+      <div style="font-size:0.62rem; color:var(--text-dim); margin-top:4px;">
+        Your baseline inclination to fly, before considering any factors
+      </div>
+    </div>
+
+    <div class="presets">
+      <button class="preset-btn" onclick="loadPreset('perfect')" aria-label="Load perfect day scenario">Perfect Day</button>
+      <button class="preset-btn" onclick="loadPreset('marginal')" aria-label="Load challenging conditions scenario">Challenging</button>
+      <button class="preset-btn" onclick="loadPreset('nogo')" aria-label="Load no-go day scenario">No-Go Day</button>
+    </div>
+  </div>
+
+  <!-- CENTER: Neuron Diagram + Decision -->
+  <div class="panel neuron-panel" role="img" aria-label="Animated neuron diagram showing inputs flowing through weights to produce a decision">
+    <div class="panel-title">Neuron Visualization</div>
+    <canvas id="neuronCanvas" width="600" height="420"></canvas>
+    <div class="decision-display">
+      <canvas id="gaugeCanvas" width="280" height="160" aria-hidden="true"></canvas>
+      <div class="decision-text" id="decisionText">STAY GROUNDED</div>
+      <div class="decision-probability" id="decisionProb">44% confident you should fly</div>
+      <div class="sr-only" id="decisionSR" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Math Breakdown -->
+  <div class="panel math-panel" role="region" aria-label="Mathematical calculation breakdown">
+    <div class="panel-title">Math Breakdown</div>
+
+    <div class="math-step" id="mathStep1"></div>
+    <div class="math-step" id="mathStep2"></div>
+    <div class="math-step" id="mathStep3"></div>
+    <div class="math-step" id="mathStep4"></div>
+
+    <div id="mathDecision" class="math-decision nogo"></div>
+
+    <div class="sigmoid-graph">
+      <canvas id="sigmoidCanvas" width="280" height="140"></canvas>
+    </div>
+
+    <div class="weight-justification">
+      <button class="weight-toggle" id="weightToggle" aria-expanded="false" aria-controls="weightDetails">
+        Why these weights?
+      </button>
+      <div class="weight-details" id="weightDetails" role="region">
+        <div class="weight-item">
+          <strong>Wind Speed (w = -5.0)</strong>
+          AOPA data shows wind is the primary cause in the majority of GA landing accidents. Risk increases near-exponentially above 17 kts.
+        </div>
+        <div class="weight-item">
+          <strong>Stress Level (w = -3.0)</strong>
+          NTSB identified fatigue/stress in 4-7% of civil aviation incidents. Impairs judgment and reduces situational awareness.
+        </div>
+        <div class="weight-item">
+          <strong>Airport Traffic (w = -2.0)</strong>
+          FAA notes 45% of near-midair collisions occur within traffic patterns. Risk scales with density.
+        </div>
+        <div class="weight-item">
+          <strong>Rental Price (w = -1.5)</strong>
+          Economic factor only. No direct safety correlation, but demonstrates that not all inputs carry equal weight.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Neuron Engine ---
+const WEIGHTS = { wind: -5.0, stress: -3.0, price: -1.5, traffic: -2.0 };
+const BASE_OFFSET = 2.5;
+
+function normalize(wind, stress, price, traffic) {
+  return {
+    x1: wind / 40,
+    x2: (stress - 1) / 9,
+    x3: (price - 100) / 200,
+    x4: traffic / 20
+  };
+}
+
+function computeNeuron(wind, stress, price, traffic, userBias) {
+  const n = normalize(wind, stress, price, traffic);
+  const wx1 = WEIGHTS.wind * n.x1;
+  const wx2 = WEIGHTS.stress * n.x2;
+  const wx3 = WEIGHTS.price * n.x3;
+  const wx4 = WEIGHTS.traffic * n.x4;
+  const weightedSum = wx1 + wx2 + wx3 + wx4;
+  const b = BASE_OFFSET + userBias;
+  const z = weightedSum + b;
+  const probability = 1 / (1 + Math.exp(-z));
+  return { n, wx1, wx2, wx3, wx4, weightedSum, b, z, probability, go: probability >= 0.5 };
+}
+
+// --- DOM References ---
+const sliders = {
+  wind: document.getElementById('windSlider'),
+  stress: document.getElementById('stressSlider'),
+  price: document.getElementById('priceSlider'),
+  traffic: document.getElementById('trafficSlider'),
+  bias: document.getElementById('biasSlider')
+};
+
+// --- Descriptors ---
+function windDescriptor(v) {
+  if (v <= 5) return 'Calm';
+  if (v <= 15) return 'Breezy';
+  if (v <= 25) return 'Strong';
+  return 'Dangerous';
+}
+function stressDescriptor(v) {
+  if (v <= 2) return 'Relaxed';
+  if (v <= 5) return 'Moderate';
+  if (v <= 8) return 'Stressed';
+  return 'Overwhelmed';
+}
+function priceDescriptor(v) {
+  if (v <= 130) return 'Cheap';
+  if (v <= 200) return 'Typical';
+  if (v <= 260) return 'Expensive';
+  return 'Premium';
+}
+function trafficDescriptor(v) {
+  if (v <= 2) return 'Empty';
+  if (v <= 6) return 'Light';
+  if (v <= 10) return 'Moderate';
+  if (v <= 15) return 'Busy';
+  return 'Congested';
+}
+function biasDescriptor(v) {
+  if (v <= -2) return 'Reluctant Pilot';
+  if (v <= -0.5) return 'Cautious';
+  if (v <= 0.5) return 'Neutral';
+  if (v <= 2) return 'Enthusiastic';
+  return 'Eager Pilot';
+}
+
+// --- Animation State ---
+let animState = {
+  pulses: [],
+  lastResult: null,
+  gaugeAngle: Math.PI, // start at 0%
+  sigmoidDotX: 0
+};
+
+// --- Pulse System ---
+function spawnPulse(inputIndex) {
+  animState.pulses.push({
+    inputIndex,
+    progress: 0,
+    speed: 0.025
+  });
+}
+
+// --- Main Update ---
+function update() {
+  const wind = +sliders.wind.value;
+  const stress = +sliders.stress.value;
+  const price = +sliders.price.value;
+  const traffic = +sliders.traffic.value;
+  const bias = +sliders.bias.value;
+
+  // Update displays
+  document.getElementById('windVal').textContent = wind + ' kts';
+  document.getElementById('stressVal').textContent = stress;
+  document.getElementById('priceVal').textContent = '$' + price + '/hr';
+  document.getElementById('trafficVal').textContent = traffic + ' aircraft';
+  document.getElementById('biasVal').textContent = (bias >= 0 ? '+' : '') + bias.toFixed(1);
+
+  document.getElementById('windDesc').textContent = windDescriptor(wind);
+  document.getElementById('stressDesc').textContent = stressDescriptor(stress);
+  document.getElementById('priceDesc').textContent = priceDescriptor(price);
+  document.getElementById('trafficDesc').textContent = trafficDescriptor(traffic);
+  document.getElementById('biasDesc').textContent = biasDescriptor(bias);
+
+  // Compute
+  const r = computeNeuron(wind, stress, price, traffic, bias);
+  animState.lastResult = r;
+
+  // Contribution bars
+  updateContribBar('windBar', Math.abs(r.wx1), 5);
+  updateContribBar('stressBar', Math.abs(r.wx2), 3);
+  updateContribBar('priceBar', Math.abs(r.wx3), 1.5);
+  updateContribBar('trafficBar', Math.abs(r.wx4), 2);
+
+  // Math breakdown
+  updateMath(wind, stress, price, traffic, bias, r);
+
+  // Decision text
+  const pct = Math.round(r.probability * 100);
+  const decText = document.getElementById('decisionText');
+  const decProb = document.getElementById('decisionProb');
+  const decSR = document.getElementById('decisionSR');
+
+  if (r.go) {
+    decText.textContent = 'GO FLYING!';
+    decText.style.color = 'var(--accent-green)';
+  } else {
+    decText.textContent = 'STAY GROUNDED';
+    decText.style.color = 'var(--accent-red)';
+  }
+  decProb.textContent = pct + '% confident you should fly';
+  decSR.textContent = (r.go ? 'Decision: Go flying.' : 'Decision: Stay grounded.') + ' ' + pct + '% confidence.';
+
+  // Math decision box
+  const md = document.getElementById('mathDecision');
+  md.className = 'math-decision ' + (r.go ? 'go' : 'nogo');
+  md.textContent = 'DECISION: ' + pct + '% ' + (r.go ? '>=' : '<') + ' 50% \u2192 ' + (r.go ? 'GO \u2713' : 'NO-GO \u2717');
+}
+
+function updateContribBar(id, value, maxWeight) {
+  const el = document.getElementById(id);
+  const pct = Math.min((value / maxWeight) * 100, 100);
+  el.style.width = pct + '%';
+  const intensity = pct / 100;
+  el.style.background = `rgb(${Math.round(239 * intensity + 59 * (1 - intensity))}, ${Math.round(68 * intensity + 130 * (1 - intensity))}, ${Math.round(68 * intensity + 246 * (1 - intensity))})`;
+}
+
+function updateMath(wind, stress, price, traffic, bias, r) {
+  // Step 1: Normalize
+  document.getElementById('mathStep1').innerHTML =
+    '<div class="math-step-title">STEP 1: Normalize Inputs</div><hr class="math-step-divider">' +
+    mathLine('Wind Speed', wind + ' kts', 'x\u2081 = ' + r.n.x1.toFixed(3)) +
+    mathLine('Stress Level', stress, 'x\u2082 = ' + r.n.x2.toFixed(3)) +
+    mathLine('Rental Price', '$' + price, 'x\u2083 = ' + r.n.x3.toFixed(3)) +
+    mathLine('Airport Traffic', traffic, 'x\u2084 = ' + r.n.x4.toFixed(3));
+
+  // Step 2: Weights
+  document.getElementById('mathStep2').innerHTML =
+    '<div class="math-step-title">STEP 2: Apply Weights</div><hr class="math-step-divider">' +
+    mathLine('w\u2081 \u00d7 x\u2081', WEIGHTS.wind.toFixed(1) + ' \u00d7 ' + r.n.x1.toFixed(3), fmtSigned(r.wx1), r.wx1) +
+    mathLine('w\u2082 \u00d7 x\u2082', WEIGHTS.stress.toFixed(1) + ' \u00d7 ' + r.n.x2.toFixed(3), fmtSigned(r.wx2), r.wx2) +
+    mathLine('w\u2083 \u00d7 x\u2083', WEIGHTS.price.toFixed(1) + ' \u00d7 ' + r.n.x3.toFixed(3), fmtSigned(r.wx3), r.wx3) +
+    mathLine('w\u2084 \u00d7 x\u2084', WEIGHTS.traffic.toFixed(1) + ' \u00d7 ' + r.n.x4.toFixed(3), fmtSigned(r.wx4), r.wx4);
+
+  // Step 3: Sum + Bias
+  document.getElementById('mathStep3').innerHTML =
+    '<div class="math-step-title">STEP 3: Sum + Bias</div><hr class="math-step-divider">' +
+    mathLine('Weighted Sum', '', fmtSigned(r.weightedSum), r.weightedSum) +
+    mathLine('Bias (base + adj)', BASE_OFFSET.toFixed(1) + ' + ' + (+bias >= 0 ? '+' : '') + (+bias).toFixed(1), fmtSigned(r.b), r.b) +
+    '<div class="math-result"><div class="formula">z = \u03a3(w\u1d62x\u1d62) + b</div><div class="z-value" style="color:' +
+    (r.z >= 0 ? 'var(--accent-green)' : 'var(--accent-red)') + '">' + r.z.toFixed(3) + '</div></div>';
+
+  // Step 4: Sigmoid
+  const expVal = Math.exp(-r.z);
+  document.getElementById('mathStep4').innerHTML =
+    '<div class="math-step-title">STEP 4: Sigmoid Activation</div><hr class="math-step-divider">' +
+    '<div style="color:var(--text-dim); margin-bottom:4px;">\u03c3(z) = 1 / (1 + e<sup>-z</sup>)</div>' +
+    '<div style="margin-bottom:2px;">\u03c3(' + r.z.toFixed(3) + ') = 1 / (1 + ' + expVal.toFixed(3) + ')</div>' +
+    '<div class="math-result"><div class="z-value" style="color:' +
+    (r.go ? 'var(--accent-green)' : 'var(--accent-red)') + '">' +
+    (r.probability * 100).toFixed(1) + '%</div></div>';
+}
+
+function mathLine(label, detail, value, numVal) {
+  let cls = 'value';
+  if (numVal !== undefined) cls += numVal < 0 ? ' negative' : ' positive';
+  return '<div class="math-line"><span class="label">' + label + (detail ? ' (' + detail + ')' : '') + '</span><span class="' + cls + '">' + value + '</span></div>';
+}
+
+function fmtSigned(v) {
+  return (v >= 0 ? '+' : '') + v.toFixed(3);
+}
+
+// --- Neuron Canvas Drawing ---
+const neuronCanvas = document.getElementById('neuronCanvas');
+const nCtx = neuronCanvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+
+function setupCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+// Input positions (relative)
+const inputNames = ['Wind', 'Stress', 'Price', 'Traffic'];
+const inputWeightLabels = ['w\u2081=-5.0', 'w\u2082=-3.0', 'w\u2083=-1.5', 'w\u2084=-2.0'];
+
+function getNodePositions(w, h) {
+  const inputs = [];
+  const count = 4;
+  const startY = h * 0.15;
+  const gap = (h * 0.55) / (count - 1);
+  for (let i = 0; i < count; i++) {
+    inputs.push({ x: w * 0.08, y: startY + gap * i });
+  }
+  const sumNode = { x: w * 0.5, y: h * 0.37 };
+  const sigNode = { x: w * 0.7, y: h * 0.37 };
+  const outNode = { x: w * 0.88, y: h * 0.37 };
+  const biasNode = { x: w * 0.5, y: h * 0.75 };
+  return { inputs, sumNode, sigNode, outNode, biasNode };
+}
+
+function drawNeuron(timestamp) {
+  const rect = neuronCanvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  neuronCanvas.width = w * dpr;
+  neuronCanvas.height = h * dpr;
+  nCtx.scale(dpr, dpr);
+  nCtx.clearRect(0, 0, w, h);
+
+  const pos = getNodePositions(w, h);
+  const r = animState.lastResult;
+  if (!r) return;
+
+  const weightMags = [Math.abs(WEIGHTS.wind), Math.abs(WEIGHTS.stress), Math.abs(WEIGHTS.price), Math.abs(WEIGHTS.traffic)];
+  const maxMag = Math.max(...weightMags);
+
+  // Draw connections (input -> sum)
+  for (let i = 0; i < 4; i++) {
+    const thickness = 1 + (weightMags[i] / maxMag) * 4;
+    const contrib = [r.wx1, r.wx2, r.wx3, r.wx4][i];
+    const intensity = Math.min(Math.abs(contrib) / 2.5, 1);
+    const color = contrib <= 0
+      ? `rgba(239, 68, 68, ${0.25 + intensity * 0.6})`
+      : `rgba(34, 197, 94, ${0.25 + intensity * 0.6})`;
+
+    nCtx.beginPath();
+    nCtx.moveTo(pos.inputs[i].x + 30, pos.inputs[i].y);
+    nCtx.lineTo(pos.sumNode.x - 22, pos.sumNode.y);
+    nCtx.strokeStyle = color;
+    nCtx.lineWidth = thickness;
+    nCtx.stroke();
+  }
+
+  // Bias connection
+  nCtx.beginPath();
+  nCtx.moveTo(pos.biasNode.x, pos.biasNode.y - 18);
+  nCtx.lineTo(pos.sumNode.x, pos.sumNode.y + 22);
+  nCtx.strokeStyle = `rgba(234, 179, 8, 0.5)`;
+  nCtx.lineWidth = 2;
+  nCtx.setLineDash([4, 4]);
+  nCtx.stroke();
+  nCtx.setLineDash([]);
+
+  // Sum -> Sigmoid
+  nCtx.beginPath();
+  nCtx.moveTo(pos.sumNode.x + 22, pos.sumNode.y);
+  nCtx.lineTo(pos.sigNode.x - 22, pos.sigNode.y);
+  nCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+  nCtx.lineWidth = 2;
+  nCtx.stroke();
+
+  // Sigmoid -> Output
+  const outColor = r.go ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+  nCtx.beginPath();
+  nCtx.moveTo(pos.sigNode.x + 22, pos.sigNode.y);
+  nCtx.lineTo(pos.outNode.x - 24, pos.outNode.y);
+  nCtx.strokeStyle = outColor;
+  nCtx.lineWidth = 2 + r.probability * 3;
+  nCtx.stroke();
+
+  // Draw pulses
+  const now = timestamp || 0;
+  animState.pulses = animState.pulses.filter(p => p.progress <= 1.2);
+  for (const p of animState.pulses) {
+    p.progress += p.speed;
+    if (p.progress > 1.2) continue;
+    const t = Math.min(p.progress, 1);
+    const inp = pos.inputs[p.inputIndex];
+    const px = (inp.x + 30) + ((pos.sumNode.x - 22) - (inp.x + 30)) * t;
+    const py = inp.y + (pos.sumNode.y - inp.y) * t;
+    const contrib = [r.wx1, r.wx2, r.wx3, r.wx4][p.inputIndex];
+    const pulseColor = contrib <= 0 ? '#ef4444' : '#22c55e';
+    nCtx.beginPath();
+    nCtx.arc(px, py, 4 + (1 - t) * 2, 0, Math.PI * 2);
+    nCtx.fillStyle = pulseColor;
+    nCtx.globalAlpha = 1 - t * 0.6;
+    nCtx.fill();
+    nCtx.globalAlpha = 1;
+  }
+
+  // Draw input nodes
+  for (let i = 0; i < 4; i++) {
+    drawCircle(nCtx, pos.inputs[i].x, pos.inputs[i].y, 20, '#1e293b', 'rgba(59,130,246,0.6)', 1.5);
+    nCtx.fillStyle = '#e0e0e8';
+    nCtx.font = '9px system-ui';
+    nCtx.textAlign = 'center';
+    nCtx.textBaseline = 'middle';
+    nCtx.fillText(inputNames[i], pos.inputs[i].x, pos.inputs[i].y - 1);
+    // Weight label on connection
+    const mx = (pos.inputs[i].x + 30 + pos.sumNode.x - 22) / 2;
+    const my = (pos.inputs[i].y + pos.sumNode.y) / 2 - 8;
+    nCtx.font = '8px monospace';
+    nCtx.fillStyle = 'rgba(255,255,255,0.45)';
+    nCtx.fillText(inputWeightLabels[i], mx, my);
+  }
+
+  // Sum node
+  const sumPulse = 1 + Math.sin(now * 0.003) * 0.08;
+  drawCircle(nCtx, pos.sumNode.x, pos.sumNode.y, 22 * sumPulse, '#1e293b', 'rgba(139,92,246,0.7)', 2);
+  nCtx.fillStyle = '#e0e0e8';
+  nCtx.font = 'bold 13px system-ui';
+  nCtx.textAlign = 'center';
+  nCtx.textBaseline = 'middle';
+  nCtx.fillText('\u03a3+b', pos.sumNode.x, pos.sumNode.y);
+
+  // Sigmoid node
+  drawCircle(nCtx, pos.sigNode.x, pos.sigNode.y, 22, '#1e293b', 'rgba(236,72,153,0.7)', 2);
+  nCtx.fillStyle = '#e0e0e8';
+  nCtx.font = 'bold 14px system-ui';
+  nCtx.fillText('\u03c3', pos.sigNode.x, pos.sigNode.y);
+
+  // Output node (glow)
+  const glowColor = r.go
+    ? `rgba(34, 197, 94, ${0.3 + r.probability * 0.5 + Math.sin(now * 0.004) * 0.1})`
+    : `rgba(239, 68, 68, ${0.3 + (1 - r.probability) * 0.5 + Math.sin(now * 0.004) * 0.1})`;
+  const outFill = r.go ? '#166534' : '#7f1d1d';
+  drawCircle(nCtx, pos.outNode.x, pos.outNode.y, 24, outFill, glowColor, 3);
+  nCtx.fillStyle = '#fff';
+  nCtx.font = 'bold 11px system-ui';
+  nCtx.fillText(Math.round(r.probability * 100) + '%', pos.outNode.x, pos.outNode.y);
+
+  // Bias node
+  drawCircle(nCtx, pos.biasNode.x, pos.biasNode.y, 18, '#1e293b', 'rgba(234,179,8,0.6)', 1.5);
+  nCtx.fillStyle = '#eab308';
+  nCtx.font = '9px system-ui';
+  nCtx.fillText('Bias', pos.biasNode.x, pos.biasNode.y - 1);
+  nCtx.font = '8px monospace';
+  nCtx.fillText((r.b >= 0 ? '+' : '') + r.b.toFixed(1), pos.biasNode.x, pos.biasNode.y + 10);
+
+  // Labels
+  nCtx.font = '9px system-ui';
+  nCtx.fillStyle = 'rgba(255,255,255,0.3)';
+  nCtx.textAlign = 'left';
+  nCtx.fillText('Inputs', pos.inputs[0].x - 16, pos.inputs[0].y - 30);
+  nCtx.textAlign = 'center';
+  nCtx.fillText('Sum', pos.sumNode.x, pos.sumNode.y - 32);
+  nCtx.fillText('Activation', pos.sigNode.x, pos.sigNode.y - 32);
+  nCtx.fillText('Output', pos.outNode.x, pos.outNode.y - 34);
+}
+
+function drawCircle(ctx, x, y, r, fill, stroke, lineWidth) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+// --- Gauge Drawing ---
+const gaugeCanvas = document.getElementById('gaugeCanvas');
+
+function drawGauge() {
+  const rect = gaugeCanvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  gaugeCanvas.width = w * dpr;
+  gaugeCanvas.height = h * dpr;
+  const ctx = gaugeCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const r = animState.lastResult;
+  if (!r) return;
+
+  const cx = w / 2;
+  const cy = h - 20;
+  const radius = Math.min(w, h) - 40;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, Math.PI, 0, false);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Gradient arc
+  const grad = ctx.createLinearGradient(cx - radius, cy, cx + radius, cy);
+  grad.addColorStop(0, '#ef4444');
+  grad.addColorStop(0.4, '#eab308');
+  grad.addColorStop(0.6, '#eab308');
+  grad.addColorStop(1, '#22c55e');
+
+  // Target angle
+  const targetAngle = Math.PI + r.probability * Math.PI;
+  animState.gaugeAngle += (targetAngle - animState.gaugeAngle) * 0.12;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, Math.PI, animState.gaugeAngle, false);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = grad;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Needle
+  const needleAngle = animState.gaugeAngle;
+  const nx = cx + Math.cos(needleAngle) * (radius - 2);
+  const ny = cy + Math.sin(needleAngle) * (radius - 2);
+  ctx.beginPath();
+  ctx.arc(nx, ny, 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+  ctx.fillStyle = r.go ? '#22c55e' : '#ef4444';
+  ctx.fill();
+
+  // Labels
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.textAlign = 'left';
+  ctx.fillText('0%', cx - radius - 5, cy + 16);
+  ctx.textAlign = 'center';
+  ctx.fillText('50%', cx, cy - radius - 6);
+  ctx.textAlign = 'right';
+  ctx.fillText('100%', cx + radius + 5, cy + 16);
+}
+
+// --- Sigmoid Canvas ---
+const sigmoidCanvas = document.getElementById('sigmoidCanvas');
+
+function drawSigmoid() {
+  const rect = sigmoidCanvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  sigmoidCanvas.width = w * dpr;
+  sigmoidCanvas.height = h * dpr;
+  const ctx = sigmoidCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const r = animState.lastResult;
+  if (!r) return;
+
+  const pad = 20;
+  const gw = w - pad * 2;
+  const gh = h - pad * 2;
+  const zRange = 8; // -4 to 4
+
+  // Axes
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  // x axis
+  ctx.beginPath();
+  ctx.moveTo(pad, pad + gh / 2);
+  ctx.lineTo(pad + gw, pad + gh / 2);
+  ctx.stroke();
+  // y axis (center)
+  ctx.beginPath();
+  ctx.moveTo(pad + gw / 2, pad);
+  ctx.lineTo(pad + gw / 2, pad + gh);
+  ctx.stroke();
+
+  // 0.5 threshold line
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = 'rgba(234,179,8,0.3)';
+  ctx.beginPath();
+  const halfY = pad + gh / 2;
+  ctx.moveTo(pad, halfY);
+  ctx.lineTo(pad + gw, halfY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Sigmoid curve
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(236,72,153,0.8)';
+  ctx.lineWidth = 2;
+  for (let px = 0; px <= gw; px++) {
+    const z = (px / gw) * zRange - zRange / 2;
+    const sig = 1 / (1 + Math.exp(-z));
+    const py = pad + gh - sig * gh;
+    if (px === 0) ctx.moveTo(pad + px, py);
+    else ctx.lineTo(pad + px, py);
+  }
+  ctx.stroke();
+
+  // Current z dot
+  const clampedZ = Math.max(-zRange / 2, Math.min(zRange / 2, r.z));
+  const dotX = pad + ((clampedZ + zRange / 2) / zRange) * gw;
+  const dotY = pad + gh - r.probability * gh;
+
+  // Vertical drop line
+  ctx.setLineDash([2, 2]);
+  ctx.strokeStyle = r.go ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(dotX, dotY);
+  ctx.lineTo(dotX, pad + gh);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dot
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = r.go ? '#22c55e' : '#ef4444';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Labels
+  ctx.font = '8px system-ui';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.textAlign = 'center';
+  ctx.fillText('z = ' + r.z.toFixed(2), dotX, pad + gh + 14);
+  ctx.textAlign = 'left';
+  ctx.fillText('1.0', pad + 2, pad + 8);
+  ctx.fillText('0.0', pad + 2, pad + gh - 2);
+  ctx.textAlign = 'right';
+  ctx.fillText('\u03c3(z)', w - pad, pad + 8);
+}
+
+// --- Preset Scenarios ---
+function loadPreset(name) {
+  const presets = {
+    perfect: { wind: 0, stress: 1, price: 100, traffic: 0, bias: 0 },
+    marginal: { wind: 18, stress: 5, price: 200, traffic: 10, bias: 0 },
+    nogo: { wind: 35, stress: 9, price: 280, traffic: 18, bias: 0 }
+  };
+  const p = presets[name];
+  if (!p) return;
+  sliders.wind.value = p.wind;
+  sliders.stress.value = p.stress;
+  sliders.price.value = p.price;
+  sliders.traffic.value = p.traffic;
+  sliders.bias.value = p.bias;
+  for (let i = 0; i < 4; i++) spawnPulse(i);
+  update();
+}
+
+// --- Weight Toggle ---
+document.getElementById('weightToggle').addEventListener('click', function () {
+  const details = document.getElementById('weightDetails');
+  const open = details.classList.toggle('open');
+  this.setAttribute('aria-expanded', open);
+  this.textContent = open ? 'Hide weight justification' : 'Why these weights?';
+});
+
+// --- Event Listeners ---
+Object.values(sliders).forEach((slider, idx) => {
+  slider.addEventListener('input', () => {
+    if (idx < 4) spawnPulse(idx);
+    update();
+  });
+});
+
+// --- Animation Loop ---
+function animate(timestamp) {
+  drawNeuron(timestamp);
+  drawGauge();
+  drawSigmoid();
+  requestAnimationFrame(animate);
+}
+
+// --- Init ---
+update();
+requestAnimationFrame(animate);
+
+// Handle resize
+window.addEventListener('resize', update);
+</script>
+</body>
+</html>
