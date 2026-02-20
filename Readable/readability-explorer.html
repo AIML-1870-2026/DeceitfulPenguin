@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Readability Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ui-bg: #111111;
+      --panel-bg: #191919;
+      --control-bg: #222222;
+      --border: #2e2e2e;
+      --text-primary: #e4e4e4;
+      --text-muted: #777777;
+      --accent: #e8a020;
+      --accent-dim: rgba(232, 160, 32, 0.12);
+      --font-ui: 'IBM Plex Mono', monospace;
+      --font-specimen: 'Playfair Display', Georgia, serif;
+      --radius: 3px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--ui-bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 1.1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    header p {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 480px 1fr 320px;
+      min-height: 0;
+    }
+
+    /* ── Control panel ── */
+    .control-panel {
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    .control-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Vision type ── */
+    .vision-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .vision-option {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      cursor: pointer;
+      padding: 0.15rem 0;
+    }
+
+    .vision-option input[type="radio"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 50%;
+      background: var(--control-bg);
+      cursor: pointer;
+      flex-shrink: 0;
+      position: relative;
+      transition: border-color 0.1s;
+    }
+
+    .vision-option input[type="radio"]:checked {
+      border-color: var(--accent);
+    }
+
+    .vision-option input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 2.5px;
+      left: 2.5px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .vision-option input[type="radio"]:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .vision-option-label {
+      font-size: 0.92rem;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .vision-option-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Sim note ── */
+    .sim-note {
+      font-size: 0.76rem;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 0.5rem 0.7rem;
+      border-radius: var(--radius);
+      border: 1px solid rgba(232, 160, 32, 0.25);
+      line-height: 1.6;
+      display: none;
+    }
+
+    .sim-note.visible {
+      display: block;
+    }
+
+    /* ── Swatch row ── */
+    .color-swatch-row {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .color-swatch {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .color-hex {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Slider group ── */
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      transition: opacity 0.15s;
+    }
+
+    .slider-group.disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .slider-row {
+      display: grid;
+      grid-template-columns: 14px 1fr 44px;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .ch-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .ch-label.r { color: #cc5555; }
+    .ch-label.g { color: #5aaa5a; }
+    .ch-label.b { color: #5588dd; }
+
+    input[type="range"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--border);
+      cursor: pointer;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--panel-bg);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--panel-bg);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    input[type="range"]:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    output.slider-value {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* ── Size row ── */
+    .size-row {
+      display: grid;
+      grid-template-columns: 1fr 52px;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    /* ── Text display ── */
+    .text-display {
+      overflow-y: auto;
+      padding: 2.5rem;
+    }
+
+    .text-specimen {
+      font-family: var(--font-specimen);
+      line-height: 1.75;
+      width: 100%;
+    }
+
+    .text-specimen p + p {
+      margin-top: 1.1em;
+    }
+
+    /* ── Metrics bar ── */
+    .metrics-bar {
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 2.5rem;
+      flex-shrink: 0;
+    }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .metric-label {
+      font-size: 0.58rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .metric-value {
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .contrast-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+    }
+
+    .metric-badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 2px;
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .badge-aaa       { background: rgba(72, 190, 90, 0.15);  color: #48be5a; }
+    .badge-aa        { background: rgba(232, 160, 32, 0.15); color: #e8a020; }
+    .badge-aa-large  { background: rgba(220, 115, 30, 0.15); color: #dc731e; }
+    .badge-fail      { background: rgba(210, 50, 50, 0.15);  color: #d23232; }
+
+    .contrast-value.aaa      { color: #48be5a; }
+    .contrast-value.aa       { color: #e8a020; }
+    .contrast-value.aa-large { color: #dc731e; }
+    .contrast-value.fail     { color: #d23232; }
+
+    .metrics-divider {
+      width: 1px;
+      height: 38px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── Eye chart panel ── */
+    .eye-chart-panel {
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+    }
+
+    .eye-chart {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.1em;
+      width: 100%;
+    }
+
+    .chart-row {
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-align: center;
+      line-height: 1.1;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 480px 1fr;
+      }
+
+      .eye-chart-panel {
+        grid-column: 1 / -1;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        padding: 1.5rem 2rem;
+      }
+
+      .eye-chart {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .metrics-bar {
+        flex-wrap: wrap;
+        gap: 1.5rem;
+      }
+
+      header {
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Readability Explorer</h1>
+    <p>Typography, color, and vision — measured in real time</p>
+  </header>
+
+  <main>
+    <!-- ── Control Panel ── -->
+    <div class="control-panel" role="form" aria-label="Display controls">
+
+      <!-- Vision Type -->
+      <section class="control-section">
+        <div class="section-label">Vision Type</div>
+        <div class="vision-group" role="radiogroup" aria-label="Vision simulation mode">
+          <label class="vision-option">
+            <input type="radio" name="vision" value="normal" checked>
+            <span class="vision-option-label">Normal</span>
+          </label>
+          <label class="vision-option">
+            <input type="radio" name="vision" value="protanopia">
+            <span class="vision-option-label">Protanopia</span>
+            <span class="vision-option-sub">red-blind</span>
+          </label>
+          <label class="vision-option">
+            <input type="radio" name="vision" value="deuteranopia">
+            <span class="vision-option-label">Deuteranopia</span>
+            <span class="vision-option-sub">green-blind</span>
+          </label>
+          <label class="vision-option">
+            <input type="radio" name="vision" value="tritanopia">
+            <span class="vision-option-label">Tritanopia</span>
+            <span class="vision-option-sub">blue-blind</span>
+          </label>
+          <label class="vision-option">
+            <input type="radio" name="vision" value="monochromacy">
+            <span class="vision-option-label">Monochromacy</span>
+            <span class="vision-option-sub">achromatopsia</span>
+          </label>
+        </div>
+        <div class="sim-note" id="sim-note" role="note">
+          Sliders are disabled in simulation mode — the displayed colors are simulated, not editable.
+        </div>
+      </section>
+
+      <!-- Background Color -->
+      <section class="control-section">
+        <div class="section-label">Background Color</div>
+        <div class="color-swatch-row">
+          <div class="color-swatch" id="bg-swatch" aria-hidden="true" style="background:#ffffff"></div>
+          <span class="color-hex" id="bg-hex">#FFFFFF</span>
+        </div>
+        <div class="slider-group" id="bg-sliders">
+          <div class="slider-row">
+            <span class="ch-label r" aria-hidden="true">R</span>
+            <input type="range" min="0" max="255" value="255" id="bg-r" aria-label="Background red">
+            <output class="slider-value" for="bg-r" id="bg-r-val">255</output>
+          </div>
+          <div class="slider-row">
+            <span class="ch-label g" aria-hidden="true">G</span>
+            <input type="range" min="0" max="255" value="255" id="bg-g" aria-label="Background green">
+            <output class="slider-value" for="bg-g" id="bg-g-val">255</output>
+          </div>
+          <div class="slider-row">
+            <span class="ch-label b" aria-hidden="true">B</span>
+            <input type="range" min="0" max="255" value="255" id="bg-b" aria-label="Background blue">
+            <output class="slider-value" for="bg-b" id="bg-b-val">255</output>
+          </div>
+        </div>
+      </section>
+
+      <!-- Text Color -->
+      <section class="control-section">
+        <div class="section-label">Text Color</div>
+        <div class="color-swatch-row">
+          <div class="color-swatch" id="text-swatch" aria-hidden="true" style="background:#000000"></div>
+          <span class="color-hex" id="text-hex">#000000</span>
+        </div>
+        <div class="slider-group" id="text-sliders">
+          <div class="slider-row">
+            <span class="ch-label r" aria-hidden="true">R</span>
+            <input type="range" min="0" max="255" value="0" id="text-r" aria-label="Text red">
+            <output class="slider-value" for="text-r" id="text-r-val">0</output>
+          </div>
+          <div class="slider-row">
+            <span class="ch-label g" aria-hidden="true">G</span>
+            <input type="range" min="0" max="255" value="0" id="text-g" aria-label="Text green">
+            <output class="slider-value" for="text-g" id="text-g-val">0</output>
+          </div>
+          <div class="slider-row">
+            <span class="ch-label b" aria-hidden="true">B</span>
+            <input type="range" min="0" max="255" value="0" id="text-b" aria-label="Text blue">
+            <output class="slider-value" for="text-b" id="text-b-val">0</output>
+          </div>
+        </div>
+      </section>
+
+      <!-- Text Size -->
+      <section class="control-section">
+        <div class="section-label">Text Size</div>
+        <div class="size-row">
+          <input type="range" min="10" max="72" value="18" step="1" id="text-size" aria-label="Text size">
+          <output class="slider-value" for="text-size" id="text-size-val">18px</output>
+        </div>
+      </section>
+
+      <!-- Chart Scale -->
+      <section class="control-section">
+        <div class="section-label">Eye Chart Scale</div>
+        <div class="size-row">
+          <input type="range" min="6" max="20" value="11" step="1" id="chart-scale" aria-label="Eye chart scale">
+          <output class="slider-value" for="chart-scale" id="chart-scale-val">11px</output>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ── Text Display ── -->
+    <div class="text-display" id="text-display" role="region" aria-label="Text sample display">
+      <div class="text-specimen" id="text-specimen">
+        <p>The relationship between text color and background color determines whether type is legible. When the contrast ratio between foreground and background falls below a certain threshold, reading becomes labored — first for those with low vision or color vision deficiencies, then for everyone under suboptimal lighting conditions.</p>
+        <p>WCAG 2.1 defines three levels of conformance. Level AA requires a contrast ratio of at least 4.5:1 for normal text and 3:1 for large text. Level AAA raises the bar to 7:1. These ratios are derived from a relative luminance formula that weights the red, green, and blue channels according to human perceptual sensitivity — the eye is most responsive to green, moderately to red, and least to blue.</p>
+        <p>Color alone is never sufficient to convey information. A person with deuteranopia — the most common form of color vision deficiency, affecting roughly 1 in 12 men — cannot reliably distinguish red from green at similar luminance levels. When these colors are used without sufficient luminance contrast, critical information disappears entirely. Good typographic contrast is therefore not merely aesthetic preference; it is a functional requirement for universal communication.</p>
+        <p>Adjust the controls to explore how foreground color, background color, text size, and vision type interact. Watch the contrast ratio respond in real time. A ratio above 7:1 meets the highest accessibility standard. Below 3:1, most readers will struggle — and some will find the text invisible altogether.</p>
+      </div>
+    </div>
+
+    <!-- ── Eye Chart Panel ── -->
+    <div class="eye-chart-panel" id="eye-chart-panel" role="region" aria-label="Eye chart display">
+      <div class="eye-chart" id="eye-chart">
+        <div class="chart-row" style="font-size: 10em">E</div>
+        <div class="chart-row" style="font-size: 5em">FP</div>
+        <div class="chart-row" style="font-size: 3.5em">TOZ</div>
+        <div class="chart-row" style="font-size: 2.5em">LPED</div>
+        <div class="chart-row" style="font-size: 2em">PECFD</div>
+        <div class="chart-row" style="font-size: 1.5em">EDFCZP</div>
+        <div class="chart-row" style="font-size: 1.25em">FELOPZD</div>
+        <div class="chart-row" style="font-size: 1em">DEFPOTEC</div>
+        <div class="chart-row" style="font-size: 0.75em">LEFODPCT</div>
+        <div class="chart-row" style="font-size: 0.6em">FDPLTCEO</div>
+        <div class="chart-row" style="font-size: 0.5em">PEZOLCFTD</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── Metrics Bar ── -->
+  <footer class="metrics-bar" role="status" aria-label="Readability metrics" aria-live="polite">
+    <div class="metric">
+      <span class="metric-label">Contrast Ratio</span>
+      <div class="contrast-row">
+        <span class="metric-value contrast-value aaa" id="contrast-ratio">21.00:1</span>
+        <span class="metric-badge badge-aaa" id="wcag-badge">AAA</span>
+      </div>
+    </div>
+    <div class="metrics-divider" aria-hidden="true"></div>
+    <div class="metric">
+      <span class="metric-label">Text Luminance</span>
+      <span class="metric-value" id="text-luminance">L: 0.000</span>
+    </div>
+    <div class="metrics-divider" aria-hidden="true"></div>
+    <div class="metric">
+      <span class="metric-label">BG Luminance</span>
+      <span class="metric-value" id="bg-luminance">L: 1.000</span>
+    </div>
+  </footer>
+
+  <script>
+    // ── Vision simulation matrices (LMS-based, applied in linear light) ──────
+
+    const MATRICES = {
+      protanopia: [
+        [0.56667, 0.43333, 0.00000],
+        [0.55833, 0.44167, 0.00000],
+        [0.00000, 0.24167, 0.75833]
+      ],
+      deuteranopia: [
+        [0.625, 0.375, 0.000],
+        [0.700, 0.300, 0.000],
+        [0.000, 0.300, 0.700]
+      ],
+      tritanopia: [
+        [0.95,    0.05,    0.000  ],
+        [0.000,   0.43333, 0.56667],
+        [0.000,   0.475,   0.525  ]
+      ]
+    };
+
+    // ── Color math ───────────────────────────────────────────────────────────
+
+    function linearize(c) {
+      // sRGB gamma expansion
+      return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+
+    function delinearize(c) {
+      // sRGB gamma compression
+      return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    }
+
+    function clamp01(v) {
+      return Math.max(0, Math.min(1, v));
+    }
+
+    function simulateColor(r, g, b, visionType) {
+      if (visionType === 'normal') return [r, g, b];
+
+      // 1. Normalize to [0, 1]
+      const rn = r / 255, gn = g / 255, bn = b / 255;
+
+      // 2. Linearize (gamma expand)
+      const rl = linearize(rn);
+      const gl = linearize(gn);
+      const bl = linearize(bn);
+
+      let rl2, gl2, bl2;
+
+      if (visionType === 'monochromacy') {
+        // 3a. Luminance weights (standard)
+        const lum = 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
+        rl2 = gl2 = bl2 = lum;
+      } else {
+        // 3b. Apply transformation matrix
+        const m = MATRICES[visionType];
+        rl2 = m[0][0] * rl + m[0][1] * gl + m[0][2] * bl;
+        gl2 = m[1][0] * rl + m[1][1] * gl + m[1][2] * bl;
+        bl2 = m[2][0] * rl + m[2][1] * gl + m[2][2] * bl;
+      }
+
+      // 4. Gamma compress and 5. Clamp, scale to 255
+      return [
+        Math.round(clamp01(delinearize(rl2)) * 255),
+        Math.round(clamp01(delinearize(gl2)) * 255),
+        Math.round(clamp01(delinearize(bl2)) * 255)
+      ];
+    }
+
+    function relativeLuminance(r, g, b) {
+      return 0.2126 * linearize(r / 255)
+           + 0.7152 * linearize(g / 255)
+           + 0.0722 * linearize(b / 255);
+    }
+
+    function contrastRatio(l1, l2) {
+      const lighter = Math.max(l1, l2);
+      const darker  = Math.min(l1, l2);
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    function toRgbString(r, g, b) {
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function toHex(r, g, b) {
+      return '#' + [r, g, b]
+        .map(v => v.toString(16).padStart(2, '0').toUpperCase())
+        .join('');
+    }
+
+    // ── DOM references ───────────────────────────────────────────────────────
+
+    const $ = id => document.getElementById(id);
+
+    const el = {
+      bgR: $('bg-r'), bgG: $('bg-g'), bgB: $('bg-b'),
+      bgRVal: $('bg-r-val'), bgGVal: $('bg-g-val'), bgBVal: $('bg-b-val'),
+      bgSwatch: $('bg-swatch'), bgHex: $('bg-hex'),
+      bgSliders: $('bg-sliders'),
+
+      textR: $('text-r'), textG: $('text-g'), textB: $('text-b'),
+      textRVal: $('text-r-val'), textGVal: $('text-g-val'), textBVal: $('text-b-val'),
+      textSwatch: $('text-swatch'), textHex: $('text-hex'),
+      textSliders: $('text-sliders'),
+
+      textSize: $('text-size'), textSizeVal: $('text-size-val'),
+      chartScale: $('chart-scale'), chartScaleVal: $('chart-scale-val'),
+
+      display: $('text-display'),
+      specimen: $('text-specimen'),
+      eyeChartPanel: $('eye-chart-panel'),
+      eyeChart: $('eye-chart'),
+
+      contrastRatio: $('contrast-ratio'),
+      wcagBadge: $('wcag-badge'),
+      textLuminance: $('text-luminance'),
+      bgLuminance: $('bg-luminance'),
+      simNote: $('sim-note'),
+    };
+
+    let visionType = 'normal';
+
+    // ── Main update function ─────────────────────────────────────────────────
+
+    function update() {
+      const bgRaw  = [+el.bgR.value,   +el.bgG.value,   +el.bgB.value];
+      const txtRaw = [+el.textR.value, +el.textG.value, +el.textB.value];
+
+      // Update raw value readouts
+      el.bgRVal.textContent  = bgRaw[0];
+      el.bgGVal.textContent  = bgRaw[1];
+      el.bgBVal.textContent  = bgRaw[2];
+      el.textRVal.textContent = txtRaw[0];
+      el.textGVal.textContent = txtRaw[1];
+      el.textBVal.textContent = txtRaw[2];
+      el.textSizeVal.textContent  = el.textSize.value + 'px';
+      el.chartScaleVal.textContent = el.chartScale.value + 'px';
+
+      // Apply vision simulation
+      const bgSim  = simulateColor(bgRaw[0],  bgRaw[1],  bgRaw[2],  visionType);
+      const txtSim = simulateColor(txtRaw[0], txtRaw[1], txtRaw[2], visionType);
+
+      // Update swatches
+      el.bgSwatch.style.background   = toRgbString(...bgSim);
+      el.textSwatch.style.background = toRgbString(...txtSim);
+      el.bgHex.textContent   = toHex(...bgSim);
+      el.textHex.textContent = toHex(...txtSim);
+
+      // Update text display area
+      el.display.style.backgroundColor = toRgbString(...bgSim);
+      el.specimen.style.color    = toRgbString(...txtSim);
+      el.specimen.style.fontSize = el.textSize.value + 'px';
+
+      // Update eye chart panel
+      el.eyeChartPanel.style.backgroundColor = toRgbString(...bgSim);
+      el.eyeChart.style.color    = toRgbString(...txtSim);
+      el.eyeChart.style.fontSize = el.chartScale.value + 'px';
+
+      // Compute luminances from simulated colors
+      const lText = relativeLuminance(...txtSim);
+      const lBg   = relativeLuminance(...bgSim);
+      const ratio = contrastRatio(lText, lBg);
+
+      // Update metrics display
+      el.contrastRatio.textContent  = ratio.toFixed(2) + ':1';
+      el.textLuminance.textContent  = 'L: ' + lText.toFixed(3);
+      el.bgLuminance.textContent    = 'L: ' + lBg.toFixed(3);
+
+      // WCAG badge
+      let level, badgeClass, contrastClass;
+      if (ratio >= 7) {
+        level = 'AAA';      badgeClass = 'badge-aaa';      contrastClass = 'aaa';
+      } else if (ratio >= 4.5) {
+        level = 'AA';       badgeClass = 'badge-aa';       contrastClass = 'aa';
+      } else if (ratio >= 3) {
+        level = 'AA Large'; badgeClass = 'badge-aa-large'; contrastClass = 'aa-large';
+      } else {
+        level = 'Fail';     badgeClass = 'badge-fail';     contrastClass = 'fail';
+      }
+
+      el.wcagBadge.textContent    = level;
+      el.wcagBadge.className      = 'metric-badge ' + badgeClass;
+      el.contrastRatio.className  = 'metric-value contrast-value ' + contrastClass;
+
+      // Slider enable/disable
+      const simActive = visionType !== 'normal';
+      el.bgSliders.classList.toggle('disabled', simActive);
+      el.textSliders.classList.toggle('disabled', simActive);
+      el.simNote.classList.toggle('visible', simActive);
+
+      // aria-disabled on individual sliders
+      [el.bgR, el.bgG, el.bgB, el.textR, el.textG, el.textB].forEach(input => {
+        input.setAttribute('aria-disabled', simActive ? 'true' : 'false');
+      });
+    }
+
+    // ── Event listeners ──────────────────────────────────────────────────────
+
+    document.querySelectorAll('input[name="vision"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        visionType = radio.value;
+        update();
+      });
+    });
+
+    [el.bgR, el.bgG, el.bgB, el.textR, el.textG, el.textB, el.textSize, el.chartScale].forEach(input => {
+      input.addEventListener('input', update);
+    });
+
+    // ── Initialize ───────────────────────────────────────────────────────────
+    update();
+  </script>
+</body>
+</html>
