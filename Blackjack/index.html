@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jurassic Blackjack</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+
+<div id="app">
+
+  <header>
+    <h1>🦖 Jurassic Blackjack</h1>
+    <div id="record">W: 0 &nbsp;|&nbsp; L: 0 &nbsp;|&nbsp; P: 0</div>
+  </header>
+
+  <div id="table">
+    <div id="deck">Fossil<br>Deck</div>
+
+    <div class="hand-area">
+      <div class="hand-label">Dr. Rex</div>
+      <div id="dino-dealer-char">
+        <img src="Images/Dealer.png" alt="Dr. Rex, House Dealer" class="dealer-img">
+        <div class="dino-lapel">House Dealer</div>
+      </div>
+      <div class="cards-row" id="dealer-cards"></div>
+      <div class="hand-value" id="dealer-value"></div>
+    </div>
+
+    <div id="result-banner"></div>
+
+    <div class="hand-area">
+      <div class="hand-value" id="player-value"></div>
+      <div class="cards-row" id="player-cards"></div>
+      <div class="hand-label">You</div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div id="balance-display">Balance: $1,000</div>
+
+    <div id="bet-area">
+      <div id="bet-display">Bet: $0</div>
+      <div id="chip-stack"></div>
+    </div>
+
+    <div id="controls">
+      <div id="betting-controls" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;">
+        <button class="chip-btn c10"  onclick="addChip(10)">$10</button>
+        <button class="chip-btn c50"  onclick="addChip(50)">$50</button>
+        <button class="chip-btn c100" onclick="addChip(100)">$100</button>
+        <button class="btn danger" onclick="clearBet()">Clear Bet</button>
+        <button class="btn primary" id="deal-btn" onclick="startHand()" disabled>Deal</button>
+      </div>
+
+      <div id="playing-controls" class="hidden" style="display:flex;gap:10px;">
+        <button class="btn primary" onclick="playerHit()">Hit</button>
+        <button class="btn"         onclick="playerStand()">Stand</button>
+      </div>
+
+      <div id="result-controls" class="hidden">
+        <button class="btn primary" onclick="nextHand()">Next Hand</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="broke-overlay">
+  <h2>🦕 EXTINCT! 🦕</h2>
+  <p>The primordial casino has consumed your last bone.</p>
+  <button class="btn primary" onclick="newGame()" style="margin-top:8px;padding:13px 40px;font-size:0.95rem;">New Game</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
