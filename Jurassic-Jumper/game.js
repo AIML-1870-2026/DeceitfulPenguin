@@ -9,6 +9,8 @@ const sprite = new Image();
 sprite.src = 'Images/Dinosaur.png';
 const asteroidSprite = new Image();
 asteroidSprite.src = 'Images/Asteroid.png';
+const cloudSprite = new Image();
+cloudSprite.src = 'Images/Cloud1.png';
 
 // Physics
 const GRAVITY = 0.45;
@@ -20,6 +22,7 @@ const SPEED = 5.5;
 const S = { START: 0, PLAY: 1, OVER: 2 };
 let state = S.START;
 let player, platforms, cameraY, startY, score, best = 0;
+let clouds = [];
 
 // Asteroids
 let asteroids = [];
@@ -68,6 +71,26 @@ function crack() {
   } catch (_) {}
 }
 
+// ─── Clouds ─────────────────────────────────────────────
+function makeCloud(y) {
+  const scale = 0.4 + Math.random() * 0.6;
+  return {
+    x: Math.random() * (W + 80) - 40,
+    y,
+    w: 120 * scale, h: 70 * scale,
+    alpha: 0.25 + Math.random() * 0.35,
+    drift: (Math.random() - 0.5) * 0.3, // slow horizontal drift
+  };
+}
+
+function genClouds(fromY, toY) {
+  let y = fromY;
+  while (y > toY) {
+    y -= 200 + Math.random() * 300;
+    clouds.push(makeCloud(y));
+  }
+}
+
 // ─── Platforms ───────────────────────────────────────────
 const PT = { STATIC: 0, MOVING: 1, BREAKABLE: 2, SPRING: 3 };
 
@@ -100,7 +123,7 @@ function genPlatforms(fromY, toY, diff) {
 
 // ─── Init ─────────────────────────────────────────────────
 function initGame() {
-  score = 0; cameraY = 0; platforms = [];
+  score = 0; cameraY = 0; platforms = []; clouds = [];
   asteroids = [];
   asteroidTimer = ASTEROID_SPAWN_MIN + Math.random() * (ASTEROID_SPAWN_MAX - ASTEROID_SPAWN_MIN);
   player = { x: W / 2 - 32, y: H - 130, w: 64, h: 64, vx: 0, vy: JUMP_VEL, prevY: H - 120 };
@@ -109,6 +132,7 @@ function initGame() {
   platforms.push({ type: PT.STATIC, x: player.x - 15, y: player.y + player.h + 5, w: 130, h: 16,
     startX: 0, dir: 1, speed: 0, range: 0, broken: false, breakTimer: 0, pop: 0 });
   genPlatforms(player.y + player.h, cameraY - H * 3, 0);
+  genClouds(H, cameraY - H * 3);
 }
 
 function startGame() { initGame(); state = S.PLAY; }
@@ -174,6 +198,13 @@ function update() {
   let topY = cameraY;
   for (const p of platforms) if (p.y < topY) topY = p.y;
   if (topY > cameraY - H * 2) genPlatforms(topY, cameraY - H * 3, getDiff());
+
+  // Cloud drift & cleanup
+  for (const c of clouds) c.x += c.drift;
+  clouds = clouds.filter(c => c.y < cameraY + H + 100);
+  let topCloud = cameraY;
+  for (const c of clouds) if (c.y < topCloud) topCloud = c.y;
+  if (topCloud > cameraY - H * 2) genClouds(topCloud, cameraY - H * 3);
 
   // Asteroid spawning
   asteroidTimer--;
@@ -288,6 +319,18 @@ function draw() {
   const grad = ctx.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, '#87CEEB'); grad.addColorStop(1, '#E0F7FA');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  // Clouds (background layer)
+  if (cloudSprite.complete && cloudSprite.naturalWidth > 0) {
+    for (const c of clouds) {
+      const sy = c.y - cameraY;
+      if (sy > H + 20 || sy + c.h < -20) continue;
+      ctx.save();
+      ctx.globalAlpha = c.alpha;
+      ctx.drawImage(cloudSprite, c.x, sy, c.w, c.h);
+      ctx.restore();
+    }
+  }
 
   if (state === S.START) {
     txt('Jurassic Jumper!', W / 2, H / 2 - 55, 44, '#FFD600', '#1565C0');
