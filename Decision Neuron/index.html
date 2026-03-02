@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Neuron — Should I Go Flying Today?</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e1a;--surface:#111827;--surface2:#1e293b;--border:#334155;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#38bdf8;
+    --go:#22c55e;--nogo:#ef4444;--warn:#f59e0b;
+    --green-glow:0 0 20px rgba(34,197,94,.4);
+    --red-glow:0 0 20px rgba(239,68,68,.4);
+  }
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+  h1{font-size:1.6rem;font-weight:700;text-align:center;padding:1rem;background:linear-gradient(135deg,#1e293b,#0f172a);border-bottom:1px solid var(--border)}
+  h1 span{color:var(--accent)}
+
+  /* Layout */
+  .app{display:grid;grid-template-columns:280px 1fr 320px;gap:0;min-height:calc(100vh - 60px)}
+  .panel{padding:1.25rem;border-right:1px solid var(--border);overflow-y:auto}
+  .panel:last-child{border-right:none}
+  .panel-title{font-size:.85rem;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:1rem;font-weight:600}
+
+  /* Sliders */
+  .slider-group{margin-bottom:1.5rem}
+  .slider-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;font-size:.9rem;font-weight:500}
+  .slider-value{font-family:'Courier New',monospace;color:var(--accent);font-weight:700;font-size:.95rem}
+  .slider-desc{font-size:.7rem;color:var(--text-dim);margin-bottom:.3rem;font-style:italic}
+  .slider-wrap{position:relative}
+  input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer;background:var(--border)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 6px rgba(56,189,248,.5)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+  .slider-ticks{display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-dim);margin-top:.2rem;padding:0 2px}
+  .contribution-bar{height:4px;border-radius:2px;margin-top:.4rem;transition:all .3s}
+
+  /* Bias slider */
+  .bias-section{border-top:1px solid var(--border);padding-top:1rem;margin-top:.5rem}
+  .bias-section input[type=range]::-webkit-slider-thumb{background:var(--warn)}
+  .bias-section input[type=range]::-moz-range-thumb{background:var(--warn)}
+  .bias-section .slider-value{color:var(--warn)}
+
+  /* Center: Neuron Visualization */
+  .center-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at center,#111827 0%,#0a0e1a 70%)}
+  #neuronCanvas{width:100%;max-width:700px;height:auto;aspect-ratio:7/5}
+
+  /* Output decision */
+  .decision-box{text-align:center;margin-top:1rem;padding:1rem;border-radius:12px;background:var(--surface);border:2px solid var(--border);transition:all .5s;min-width:280px}
+  .decision-text{font-size:1.8rem;font-weight:800;letter-spacing:.05em;transition:color .3s}
+  .decision-prob{font-size:1rem;color:var(--text-dim);margin-top:.25rem}
+
+  /* Gauge */
+  .gauge-wrap{position:relative;width:200px;height:110px;margin:0 auto .5rem}
+  #gaugeCanvas{width:200px;height:110px}
+
+  /* Right panel: Math */
+  .math-panel{background:var(--surface);font-family:'Courier New',monospace;font-size:.78rem;line-height:1.6;padding:1.25rem;overflow-y:auto}
+  .math-step{margin-bottom:1rem}
+  .math-step-title{color:var(--accent);font-weight:700;font-size:.8rem;margin-bottom:.3rem;font-family:'Segoe UI',system-ui,sans-serif;text-transform:uppercase;letter-spacing:.05em}
+  .math-line{white-space:pre-wrap;padding:1px 0}
+  .math-sep{border-top:1px solid var(--border);margin:.5rem 0}
+  .math-highlight{padding:.5rem;border-radius:6px;margin-top:.5rem;font-size:.9rem;font-weight:700;text-align:center}
+  .pos{color:var(--go)}.neg{color:var(--nogo)}
+
+  /* Collapsible weight justification */
+  .collapsible{margin-top:1rem;border-top:1px solid var(--border);padding-top:.75rem}
+  .collapsible summary{cursor:pointer;font-size:.8rem;color:var(--accent);font-family:'Segoe UI',system-ui,sans-serif;font-weight:600;letter-spacing:.03em}
+  .collapsible summary:hover{color:#7dd3fc}
+  .collapsible p{font-family:'Segoe UI',system-ui,sans-serif;font-size:.75rem;color:var(--text-dim);margin-top:.5rem;line-height:1.5}
+  .collapsible strong{color:var(--text)}
+
+  /* Sigmoid mini chart */
+  .sigmoid-wrap{margin-top:.75rem;text-align:center}
+  #sigmoidCanvas{width:100%;max-width:280px;height:120px;border-radius:8px;background:var(--surface2)}
+
+  /* Responsive */
+  @media(max-width:1024px){
+    .app{grid-template-columns:1fr;grid-template-rows:auto auto auto}
+    .panel{border-right:none;border-bottom:1px solid var(--border)}
+    .center-panel{min-height:350px}
+  }
+  @media(max-width:600px){
+    h1{font-size:1.2rem}
+    .decision-text{font-size:1.4rem}
+  }
+</style>
+</head>
+<body>
+<h1>Decision Neuron — <span>Should I Go Flying Today?</span></h1>
+<div class="app">
+
+  <!-- LEFT: Inputs -->
+  <div class="panel" id="inputPanel">
+    <div class="panel-title">Input Factors</div>
+
+    <div class="slider-group">
+      <div class="slider-label"><span>Wind Speed</span><span class="slider-value" id="windVal">8 kts</span></div>
+      <div class="slider-desc">Higher wind = less safe to fly</div>
+      <input type="range" id="wind" min="0" max="40" value="8" step="1" aria-label="Wind Speed in knots">
+      <div class="slider-ticks"><span>0 Calm</span><span>15</span><span>25</span><span>40 Dangerous</span></div>
+      <div class="contribution-bar" id="windBar"></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label"><span>Stress Level</span><span class="slider-value" id="stressVal">3</span></div>
+      <div class="slider-desc">Higher stress = impaired judgement</div>
+      <input type="range" id="stress" min="1" max="10" value="3" step="1" aria-label="Personal Stress Level 1-10">
+      <div class="slider-ticks"><span>1 Relaxed</span><span>5</span><span>8</span><span>10 Overwhelmed</span></div>
+      <div class="contribution-bar" id="stressBar"></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label"><span>Rental Price</span><span class="slider-value" id="priceVal">$175/hr</span></div>
+      <div class="slider-desc">Higher cost = less inclined to fly</div>
+      <input type="range" id="price" min="100" max="300" value="175" step="5" aria-label="Aircraft Rental Price per hour">
+      <div class="slider-ticks"><span>$100</span><span>$175</span><span>$250</span><span>$300</span></div>
+      <div class="contribution-bar" id="priceBar"></div>
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label"><span>Airport Traffic</span><span class="slider-value" id="trafficVal">5 aircraft</span></div>
+      <div class="slider-desc">More traffic = higher collision risk</div>
+      <input type="range" id="traffic" min="0" max="20" value="5" step="1" aria-label="Airport Traffic count">
+      <div class="slider-ticks"><span>0 Empty</span><span>5</span><span>10</span><span>20 Congested</span></div>
+      <div class="contribution-bar" id="trafficBar"></div>
+    </div>
+
+    <div class="bias-section">
+      <div class="panel-title" style="color:var(--warn)">Pilot Bias</div>
+      <div class="slider-group" style="margin-bottom:0">
+        <div class="slider-label"><span>Flying Inclination</span><span class="slider-value" id="biasVal">0 (Neutral)</span></div>
+        <div class="slider-desc">Your baseline desire to fly, before considering factors</div>
+        <input type="range" id="bias" min="-3" max="3" value="0" step="0.1" aria-label="Pilot bias from reluctant to eager">
+        <div class="slider-ticks"><span>-3 Reluctant</span><span>0 Neutral</span><span>+3 Eager</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Neuron Visualization + Decision -->
+  <div class="center-panel">
+    <canvas id="neuronCanvas" width="700" height="500"></canvas>
+    <div class="decision-box" id="decisionBox">
+      <div class="gauge-wrap"><canvas id="gaugeCanvas" width="200" height="110"></canvas></div>
+      <div class="decision-text" id="decisionText">CALCULATING...</div>
+      <div class="decision-prob" id="decisionProb"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Math Breakdown -->
+  <div class="panel math-panel" id="mathPanel">
+    <div class="panel-title">Math Breakdown</div>
+    <div id="mathContent"></div>
+
+    <div class="sigmoid-wrap">
+      <div class="panel-title" style="margin-top:.5rem">Sigmoid Activation</div>
+      <canvas id="sigmoidCanvas" width="280" height="120"></canvas>
+    </div>
+
+    <details class="collapsible">
+      <summary>Why these weights?</summary>
+      <p><strong>Wind (w = -5.0):</strong> AOPA data shows wind is the primary cause in the majority of general aviation landing accidents. Risk increases near-exponentially above 20 kts.</p>
+      <p><strong>Stress (w = -3.0):</strong> NTSB identified pilot fatigue/stress in 4-7% of civil aviation incidents. Stress impairs decision-making and situational awareness.</p>
+      <p><strong>Traffic (w = -2.0):</strong> FAA notes that 45% of near-midair collisions occur in airport traffic patterns within 30 miles of airports.</p>
+      <p><strong>Price (w = -1.5):</strong> Economic consideration only — no direct safety correlation. Included to demonstrate that not all inputs carry equal weight.</p>
+    </details>
+  </div>
+</div>
+
+<script>
+// ─── Neuron Logic ───
+const W = { wind: -5.0, stress: -3.0, price: -1.5, traffic: -2.0 };
+const BASE_OFFSET = 2.5;
+
+function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
+
+function getNormalized() {
+  const wind = +document.getElementById('wind').value;
+  const stress = +document.getElementById('stress').value;
+  const price = +document.getElementById('price').value;
+  const traffic = +document.getElementById('traffic').value;
+  const bias = +document.getElementById('bias').value;
+  return {
+    raw: { wind, stress, price, traffic, bias },
+    x: {
+      wind: wind / 40,
+      stress: (stress - 1) / 9,
+      price: (price - 100) / 200,
+      traffic: traffic / 20
+    }
+  };
+}
+
+function compute() {
+  const { raw, x } = getNormalized();
+  const products = {
+    wind: W.wind * x.wind,
+    stress: W.stress * x.stress,
+    price: W.price * x.price,
+    traffic: W.traffic * x.traffic
+  };
+  const weightedSum = products.wind + products.stress + products.price + products.traffic;
+  const b = BASE_OFFSET + raw.bias;
+  const z = weightedSum + b;
+  const prob = sigmoid(z);
+  const go = prob >= 0.5;
+  return { raw, x, products, weightedSum, b, z, prob, go };
+}
+
+// ─── UI Updates ───
+function updateLabels(raw) {
+  document.getElementById('windVal').textContent = raw.wind + ' kts';
+  document.getElementById('stressVal').textContent = raw.stress;
+  document.getElementById('priceVal').textContent = '$' + raw.price + '/hr';
+  document.getElementById('trafficVal').textContent = raw.traffic + ' aircraft';
+  const biasLabels = raw.bias < -1.5 ? 'Reluctant' : raw.bias > 1.5 ? 'Eager' : 'Neutral';
+  document.getElementById('biasVal').textContent = (raw.bias >= 0 ? '+' : '') + raw.bias.toFixed(1) + ' (' + biasLabels + ')';
+}
+
+function updateContributionBars(products) {
+  const maxMag = 5; // max possible |product|
+  const entries = [
+    ['windBar', products.wind],
+    ['stressBar', products.stress],
+    ['priceBar', products.price],
+    ['trafficBar', products.traffic]
+  ];
+  entries.forEach(([id, val]) => {
+    const bar = document.getElementById(id);
+    const pct = Math.min(Math.abs(val) / maxMag * 100, 100);
+    bar.style.width = pct + '%';
+    bar.style.background = val <= 0 ? `rgba(239,68,68,${0.3 + Math.abs(val)/maxMag*0.7})` : `rgba(34,197,94,${0.3 + val/maxMag*0.7})`;
+  });
+}
+
+function updateDecision(prob, go) {
+  const box = document.getElementById('decisionBox');
+  const txt = document.getElementById('decisionText');
+  const prb = document.getElementById('decisionProb');
+  const pct = (prob * 100).toFixed(0);
+  txt.textContent = go ? 'GO FLYING! \u2713' : 'STAY GROUNDED \u2717';
+  txt.style.color = go ? 'var(--go)' : 'var(--nogo)';
+  prb.textContent = pct + '% confident you should ' + (go ? 'fly' : 'stay grounded');
+  box.style.borderColor = go ? 'var(--go)' : 'var(--nogo)';
+  box.style.boxShadow = go ? 'var(--green-glow)' : 'var(--red-glow)';
+}
+
+function updateMath(data) {
+  const { raw, x, products, weightedSum, b, z, prob, go } = data;
+  const f = (v, d=2) => v.toFixed(d);
+  const sf = (v) => (v >= 0 ? '+' : '') + v.toFixed(2);
+
+  const html = `
+    <div class="math-step">
+      <div class="math-step-title">Step 1: Normalize Inputs (0 → 1)</div>
+      <div class="math-line">Wind:    ${String(raw.wind).padStart(3)} kts   → x₁ = ${f(x.wind,3)}</div>
+      <div class="math-line">Stress:  ${String(raw.stress).padStart(3)}       → x₂ = ${f(x.stress,3)}</div>
+      <div class="math-line">Price:  $${String(raw.price).padStart(3)}/hr  → x₃ = ${f(x.price,3)}</div>
+      <div class="math-line">Traffic: ${String(raw.traffic).padStart(3)}       → x₄ = ${f(x.traffic,3)}</div>
+    </div>
+    <div class="math-sep"></div>
+    <div class="math-step">
+      <div class="math-step-title">Step 2: Apply Weights</div>
+      <div class="math-line"><span class="neg">w₁×x₁ = ${f(W.wind,1)} × ${f(x.wind,3)} = ${sf(products.wind)}</span></div>
+      <div class="math-line"><span class="neg">w₂×x₂ = ${f(W.stress,1)} × ${f(x.stress,3)} = ${sf(products.stress)}</span></div>
+      <div class="math-line"><span class="neg">w₃×x₃ = ${f(W.price,1)} × ${f(x.price,3)} = ${sf(products.price)}</span></div>
+      <div class="math-line"><span class="neg">w₄×x₄ = ${f(W.traffic,1)} × ${f(x.traffic,3)} = ${sf(products.traffic)}</span></div>
+    </div>
+    <div class="math-sep"></div>
+    <div class="math-step">
+      <div class="math-step-title">Step 3: Sum + Bias</div>
+      <div class="math-line">Weighted Sum = ${sf(weightedSum)}</div>
+      <div class="math-line">Bias (${f(BASE_OFFSET,1)} + ${sf(raw.bias)}) = ${sf(b)}</div>
+      <div class="math-line" style="border-top:1px dashed var(--border);padding-top:4px;margin-top:4px">z = Σ(wᵢxᵢ) + b = <strong>${sf(z)}</strong></div>
+    </div>
+    <div class="math-sep"></div>
+    <div class="math-step">
+      <div class="math-step-title">Step 4: Sigmoid Activation</div>
+      <div class="math-line">σ(z) = 1 / (1 + e<sup>-z</sup>)</div>
+      <div class="math-line">σ(${f(z)}) = <strong>${f(prob,4)}</strong></div>
+    </div>
+    <div class="math-highlight" style="background:${go ? 'rgba(34,197,94,.15);color:var(--go)' : 'rgba(239,68,68,.15);color:var(--nogo)'}">
+      ${(prob*100).toFixed(0)}% ${go ? '≥' : '<'} 50% → ${go ? 'GO FLYING \u2713' : 'NO-GO \u2717'}
+    </div>
+  `;
+  document.getElementById('mathContent').innerHTML = html;
+}
+
+// ─── Gauge ───
+function drawGauge(prob) {
+  const c = document.getElementById('gaugeCanvas');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const cx = W / 2, cy = H - 10, r = 80;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = '#1e293b';
+  ctx.stroke();
+
+  // Gradient arc
+  const grad = ctx.createLinearGradient(cx - r, cy, cx + r, cy);
+  grad.addColorStop(0, '#ef4444');
+  grad.addColorStop(0.35, '#f59e0b');
+  grad.addColorStop(0.65, '#f59e0b');
+  grad.addColorStop(1, '#22c55e');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = grad;
+  ctx.stroke();
+
+  // Needle
+  const angle = Math.PI + prob * Math.PI;
+  const nx = cx + Math.cos(angle) * (r - 6);
+  const ny = cy + Math.sin(angle) * (r - 6);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fill();
+
+  // Labels
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'left';
+  ctx.fillText('0%', cx - r - 10, cy + 2);
+  ctx.textAlign = 'right';
+  ctx.fillText('100%', cx + r + 12, cy + 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('50%', cx, cy - r - 4);
+}
+
+// ─── Sigmoid Chart ───
+function drawSigmoid(z, prob) {
+  const c = document.getElementById('sigmoidCanvas');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  const pad = 25;
+  ctx.clearRect(0, 0, W, H);
+
+  const zMin = -6, zMax = 6;
+  const toX = v => pad + (v - zMin) / (zMax - zMin) * (W - 2 * pad);
+  const toY = v => H - pad - v * (H - 2 * pad);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  // horizontal at 0.5
+  ctx.beginPath();
+  ctx.setLineDash([4, 4]);
+  ctx.moveTo(pad, toY(0.5));
+  ctx.lineTo(W - pad, toY(0.5));
+  ctx.stroke();
+  // vertical at 0
+  ctx.beginPath();
+  ctx.moveTo(toX(0), pad);
+  ctx.lineTo(toX(0), H - pad);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Sigmoid curve
+  ctx.beginPath();
+  ctx.strokeStyle = 'var(--accent)';
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i <= 200; i++) {
+    const zv = zMin + (zMax - zMin) * i / 200;
+    const sv = sigmoid(zv);
+    const px = toX(zv), py = toY(sv);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  // Current point
+  const clampedZ = Math.max(zMin, Math.min(zMax, z));
+  const px = toX(clampedZ), py = toY(prob);
+
+  // Vertical drop line
+  ctx.beginPath();
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = prob >= 0.5 ? '#22c55e' : '#ef4444';
+  ctx.lineWidth = 1.5;
+  ctx.moveTo(px, py);
+  ctx.lineTo(px, toY(0));
+  ctx.stroke();
+  // Horizontal line to y-axis
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.lineTo(toX(zMin), py);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Dot
+  ctx.beginPath();
+  ctx.arc(px, py, 6, 0, Math.PI * 2);
+  ctx.fillStyle = prob >= 0.5 ? '#22c55e' : '#ef4444';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Labels
+  ctx.font = '9px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'center';
+  ctx.fillText('z', W - 12, H - pad + 3);
+  ctx.fillText(clampedZ.toFixed(1), px, H - pad + 12);
+  ctx.textAlign = 'right';
+  ctx.fillText((prob * 100).toFixed(0) + '%', toX(zMin) - 3, py + 3);
+  ctx.fillText('σ(z)', pad - 3, pad - 4);
+}
+
+// ─── Neuron Diagram (Canvas) ───
+const pulses = [];
+let animFrame;
+
+function drawNeuronDiagram(data) {
+  const c = document.getElementById('neuronCanvas');
+  const ctx = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  // Set canvas resolution
+  if (c.width !== c.clientWidth * dpr) {
+    c.width = c.clientWidth * dpr;
+    c.height = c.clientHeight * dpr;
+  }
+  const W = c.width, H = c.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const { x, products, z, prob, go } = data;
+  const inputs = [
+    { label: 'Wind', x: x.wind, w: W.wind, prod: products.wind },
+    { label: 'Stress', x: x.stress, w: W.stress, prod: products.stress },
+    { label: 'Price', x: x.price, w: W.price, prod: products.price },
+    { label: 'Traffic', x: x.traffic, w: W.traffic, prod: products.traffic }
+  ];
+
+  // Positions
+  const leftX = W * 0.1;
+  const sumX = W * 0.5;
+  const sigX = W * 0.68;
+  const outX = W * 0.85;
+  const sumY = H * 0.5;
+
+  const inputYs = [H * 0.15, H * 0.38, H * 0.62, H * 0.85];
+
+  // Draw connections
+  inputs.forEach((inp, i) => {
+    const thickness = 1 + Math.abs(inp.prod) * 3;
+    const alpha = 0.3 + Math.min(Math.abs(inp.prod) / 3, 0.7);
+    ctx.beginPath();
+    ctx.moveTo(leftX + 50, inputYs[i]);
+    ctx.quadraticCurveTo(sumX - 60, inputYs[i], sumX - 25, sumY);
+    ctx.lineWidth = thickness;
+    ctx.strokeStyle = `rgba(239,68,68,${alpha})`;
+    ctx.stroke();
+
+    // Weight label on line
+    const midLX = (leftX + 50 + sumX - 25) / 2;
+    const midLY = (inputYs[i] + sumY) / 2;
+    ctx.font = `${Math.max(10, 12 * dpr / 2)}px 'Courier New'`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    const wVals = [-5.0, -3.0, -1.5, -2.0];
+    ctx.fillText('w=' + wVals[i].toFixed(1), midLX, midLY - 6);
+  });
+
+  // Sum -> Sigmoid connection
+  ctx.beginPath();
+  ctx.moveTo(sumX + 25, sumY);
+  ctx.lineTo(sigX - 20, sumY);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#38bdf8';
+  ctx.stroke();
+
+  // Sigmoid -> Output connection
+  ctx.beginPath();
+  ctx.moveTo(sigX + 20, sumY);
+  ctx.lineTo(outX - 25, sumY);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = go ? '#22c55e' : '#ef4444';
+  ctx.stroke();
+
+  // Input nodes
+  inputs.forEach((inp, i) => {
+    ctx.beginPath();
+    ctx.arc(leftX + 25, inputYs[i], 22, 0, Math.PI * 2);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#334155';
+    ctx.stroke();
+    ctx.font = `${Math.max(9, 11 * dpr / 2)}px sans-serif`;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.fillText(inp.label, leftX + 25, inputYs[i] - 4);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `${Math.max(8, 10 * dpr / 2)}px 'Courier New'`;
+    ctx.fillText(inp.x.toFixed(2), leftX + 25, inputYs[i] + 12);
+  });
+
+  // Summation node (Σ + b)
+  ctx.beginPath();
+  ctx.arc(sumX, sumY, 28, 0, Math.PI * 2);
+  const sumGlow = Math.abs(z) / 6;
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#38bdf8';
+  ctx.shadowColor = `rgba(56,189,248,${0.3 + sumGlow * 0.4})`;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.font = `bold ${Math.max(13, 16 * dpr / 2)}px sans-serif`;
+  ctx.fillStyle = '#38bdf8';
+  ctx.textAlign = 'center';
+  ctx.fillText('Σ+b', sumX, sumY + 5);
+  ctx.font = `${Math.max(9, 10 * dpr / 2)}px 'Courier New'`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('z=' + z.toFixed(2), sumX, sumY + 22);
+
+  // Bias arrow
+  ctx.beginPath();
+  ctx.moveTo(sumX, sumY + 55);
+  ctx.lineTo(sumX, sumY + 30);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#f59e0b';
+  ctx.stroke();
+  // Arrow head
+  ctx.beginPath();
+  ctx.moveTo(sumX - 5, sumY + 38);
+  ctx.lineTo(sumX, sumY + 30);
+  ctx.lineTo(sumX + 5, sumY + 38);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.stroke();
+  // Bias label
+  ctx.font = `${Math.max(9, 11 * dpr / 2)}px sans-serif`;
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('bias', sumX, sumY + 68);
+  ctx.font = `${Math.max(8, 10 * dpr / 2)}px 'Courier New'`;
+  ctx.fillText((data.b >= 0 ? '+' : '') + data.b.toFixed(1), sumX, sumY + 80);
+
+  // Sigmoid node (σ)
+  ctx.beginPath();
+  ctx.arc(sigX, sumY, 22, 0, Math.PI * 2);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#a78bfa';
+  ctx.stroke();
+  ctx.font = `bold ${Math.max(14, 18 * dpr / 2)}px serif`;
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillText('σ', sigX, sumY + 6);
+
+  // Output node
+  const outColor = go ? '#22c55e' : '#ef4444';
+  ctx.beginPath();
+  ctx.arc(outX, sumY, 28, 0, Math.PI * 2);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = outColor;
+  ctx.shadowColor = outColor;
+  ctx.shadowBlur = 15 + prob * 15;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.font = `bold ${Math.max(11, 14 * dpr / 2)}px sans-serif`;
+  ctx.fillStyle = outColor;
+  ctx.fillText((prob * 100).toFixed(0) + '%', outX, sumY + 5);
+  ctx.font = `${Math.max(9, 10 * dpr / 2)}px sans-serif`;
+  ctx.fillText(go ? 'GO' : 'NO-GO', outX, sumY + 20);
+
+  // Draw active pulses
+  drawPulses(ctx, inputs, leftX, inputYs, sumX, sumY);
+}
+
+// ─── Pulse Animation ───
+function triggerPulse(index) {
+  pulses.push({ index, t: 0, startTime: performance.now() });
+}
+
+function drawPulses(ctx, inputs, leftX, inputYs, sumX, sumY) {
+  const now = performance.now();
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const p = pulses[i];
+    const elapsed = now - p.startTime;
+    const duration = 400;
+    p.t = Math.min(elapsed / duration, 1);
+    if (p.t >= 1) { pulses.splice(i, 1); continue; }
+
+    const idx = p.index;
+    const startX = leftX + 50, startY = inputYs[idx];
+    const endX = sumX - 25, endY = sumY;
+
+    // Quadratic bezier position
+    const cpX = (startX + endX) / 2;
+    const t = p.t;
+    const px = (1-t)*(1-t)*startX + 2*(1-t)*t*cpX + t*t*endX;
+    const py = (1-t)*(1-t)*startY + 2*(1-t)*t*((startY+endY)/2) + t*t*endY;
+
+    ctx.beginPath();
+    ctx.arc(px, py, 5 + (1 - p.t) * 3, 0, Math.PI * 2);
+    const alpha = 1 - p.t * 0.5;
+    ctx.fillStyle = `rgba(239,68,68,${alpha})`;
+    ctx.shadowColor = 'rgba(239,68,68,0.6)';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ─── Main Update Loop ───
+let needsRedraw = true;
+
+function update() {
+  const data = compute();
+  updateLabels(data.raw);
+  updateContributionBars(data.products);
+  updateDecision(data.prob, data.go);
+  updateMath(data);
+  drawGauge(data.prob);
+  drawSigmoid(data.z, data.prob);
+  drawNeuronDiagram(data);
+  needsRedraw = false;
+}
+
+function animate() {
+  if (pulses.length > 0) {
+    const data = compute();
+    drawNeuronDiagram(data);
+  }
+  requestAnimationFrame(animate);
+}
+
+// ─── Event Listeners ───
+const sliderIds = ['wind', 'stress', 'price', 'traffic', 'bias'];
+const inputIndices = { wind: 0, stress: 1, price: 2, traffic: 3 };
+
+sliderIds.forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    update();
+    if (id in inputIndices) triggerPulse(inputIndices[id]);
+  });
+});
+
+// Handle canvas resize
+window.addEventListener('resize', () => update());
+
+// Initial render
+update();
+animate();
+</script>
+</body>
+</html>
