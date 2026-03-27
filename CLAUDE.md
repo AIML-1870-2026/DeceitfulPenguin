@@ -55,3 +55,7 @@ When I say "Show my URLs" or "Where's my stuff?":
 - Main file: `index.html`
 - Assets: lowercase, hyphens (e.g., `particle-system.js`)
 - Assignment folders: Descriptive names or `Assignment-XX`
+
+## Image Generation
+You have an MCP tool (`mcp__media-pipeline__create_asset`) that generates images
+using Google Gemini. Use it when assets or images are needed for projects.
