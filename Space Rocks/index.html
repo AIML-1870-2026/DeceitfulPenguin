@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NASA Live Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0b0d17;--bg2:#131629;--bg3:#1a1e35;--blue:#1e6bff;--orange:#ff6b35;--red:#ff3b3b;--yellow:#ffd93d;--green:#4ade80;--white:#e8eaed;--gray:#8892b0;--radius:8px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--white);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(1px 1px at 20px 30px,#fff,transparent),radial-gradient(1px 1px at 40px 70px,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 90px 40px,#fff,transparent),radial-gradient(1px 1px at 130px 80px,rgba(255,255,255,.4),transparent),radial-gradient(1px 1px at 200px 60px,#fff,transparent);background-size:200px 100px;animation:stars 100s linear infinite;pointer-events:none;z-index:0;opacity:.4}
+@keyframes stars{to{background-position:200px 100px}}
+header{position:sticky;top:0;z-index:100;background:rgba(11,13,23,.95);backdrop-filter:blur(10px);border-bottom:1px solid rgba(30,107,255,.2);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo svg{width:48px;height:40px}
+header h1{font-size:1.3rem;font-weight:600;flex:1}
+#lastRefresh{font-size:.75rem;color:var(--gray)}
+#refreshAll{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:var(--radius);cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s}
+#refreshAll:hover{background:#3b82f6;transform:scale(1.05)}
+.tab-bar{display:flex;gap:4px;padding:0 24px;background:rgba(11,13,23,.8);border-bottom:1px solid rgba(255,255,255,.05);position:sticky;top:65px;z-index:99}
+.tab-btn{padding:12px 24px;background:none;border:none;color:var(--gray);font-size:.9rem;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;display:flex;align-items:center;gap:8px}
+.tab-btn:hover{color:var(--white)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-panel{display:none;padding:24px;position:relative;z-index:1;min-height:calc(100vh - 130px)}
+.tab-panel.active{display:block}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;padding:16px;background:var(--bg2);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05)}
+.controls label{font-size:.8rem;color:var(--gray)}
+.controls input,.controls select{background:var(--bg3);border:1px solid rgba(255,255,255,.1);color:var(--white);padding:6px 10px;border-radius:6px;font-size:.85rem}
+.controls button,.btn{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s}
+.controls button:hover,.btn:hover{opacity:.85}
+.stats{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.stat-chip{background:var(--bg2);border:1px solid rgba(255,255,255,.08);padding:12px 18px;border-radius:var(--radius);flex:1;min-width:150px}
+.stat-chip .label{font-size:.7rem;color:var(--gray);text-transform:uppercase;letter-spacing:.5px}
+.stat-chip .value{font-size:1.4rem;font-weight:700;margin-top:4px}
+.stat-chip.orange .value{color:var(--orange)}
+table{width:100%;border-collapse:collapse;background:var(--bg2);border-radius:var(--radius);overflow:hidden}
+th{background:var(--bg3);padding:10px 12px;text-align:left;font-size:.75rem;text-transform:uppercase;color:var(--gray);cursor:pointer;user-select:none;letter-spacing:.5px;white-space:nowrap}
+th:hover{color:var(--white)}
+th .sort-arrow{margin-left:4px;opacity:.4}
+th.sorted .sort-arrow{opacity:1;color:var(--blue)}
+td{padding:10px 12px;border-top:1px solid rgba(255,255,255,.04);font-size:.85rem}
+tr:hover td{background:rgba(30,107,255,.05)}
+tr{cursor:pointer}
+.hazard-badge{background:rgba(255,107,53,.15);color:var(--orange);padding:2px 8px;border-radius:10px;font-size:.75rem;font-weight:600}
+.miss-red{color:var(--red)}
+.miss-yellow{color:var(--yellow)}
+.miss-green{color:var(--green)}
+.search-row{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+.search-row input{flex:1;max-width:300px;background:var(--bg2);border:1px solid rgba(255,255,255,.1);color:var(--white);padding:8px 14px;border-radius:6px;font-size:.85rem}
+.toggle-label{display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer}
+.toggle-switch{width:40px;height:22px;background:var(--bg3);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:1px solid rgba(255,255,255,.1)}
+.toggle-switch.on{background:var(--orange)}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle-switch.on::after{transform:translateX(18px)}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:200;justify-content:center;align-items:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg2);border:1px solid rgba(255,255,255,.1);border-radius:12px;max-width:700px;width:100%;max-height:85vh;overflow-y:auto;padding:28px;position:relative}
+.modal h2{font-size:1.2rem;margin-bottom:16px;color:var(--blue)}
+.modal .close-btn{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--gray);font-size:1.4rem;cursor:pointer}
+.modal .close-btn:hover{color:#fff}
+.modal table{font-size:.8rem}
+.modal table td,.modal table th{padding:6px 10px}
+.modal a{color:var(--blue);text-decoration:none}
+.modal a:hover{text-decoration:underline}
+.bar-chart-section{margin-top:24px;padding:20px;background:var(--bg2);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05)}
+.bar-chart-section h3{font-size:.95rem;margin-bottom:16px;color:var(--gray)}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:.8rem;position:relative}
+.bar .bar-name{width:140px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.bar .bar-fill{height:24px;border-radius:4px;transition:width .5s;position:relative;min-width:2px}
+.bar .bar-val{font-size:.75rem;color:var(--gray);white-space:nowrap}
+.bar .bar-fill:hover{opacity:.8}
+.bar-tooltip{display:none;position:absolute;background:var(--bg);border:1px solid var(--blue);padding:6px 10px;border-radius:6px;font-size:.75rem;z-index:10;white-space:nowrap;top:-30px;left:50%;transform:translateX(-50%)}
+.bar .bar-fill:hover .bar-tooltip{display:block}
+.split-view{display:flex;gap:20px;min-height:500px}
+.event-list{width:40%;overflow-y:auto;max-height:600px;display:flex;flex-direction:column;gap:8px;padding-right:8px}
+.event-list::-webkit-scrollbar{width:6px}
+.event-list::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
+.globe-container{width:60%;position:relative;min-height:500px;background:var(--bg);border-radius:var(--radius);overflow:hidden;border:1px solid rgba(255,255,255,.05)}
+.event-card{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius);padding:14px;cursor:pointer;transition:all .2s}
+.event-card:hover,.event-card.selected{border-color:var(--blue);background:var(--bg3)}
+.event-card .cat-emoji{font-size:1.5rem}
+.event-card h4{font-size:.9rem;margin:6px 0 4px}
+.event-card .meta{font-size:.75rem;color:var(--gray);display:flex;gap:10px;align-items:center}
+.cat-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;background:rgba(30,107,255,.15);color:var(--blue)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.status-dot.open{background:var(--green);animation:pulse-dot 1.5s infinite}
+.status-dot.closed{background:var(--gray)}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.event-detail{margin-top:20px;padding:20px;background:var(--bg2);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05);display:none}
+.event-detail.show{display:block}
+.event-detail h3{color:var(--blue);margin-bottom:12px}
+.donut-section{margin-top:24px;padding:20px;background:var(--bg2);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05);display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.donut-section svg{flex-shrink:0}
+.donut-legend{display:flex;flex-direction:column;gap:6px;font-size:.8rem}
+.donut-legend .item{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:4px;transition:background .2s}
+.donut-legend .item:hover{background:rgba(255,255,255,.05)}
+.donut-legend .swatch{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+.hero{position:relative;border-radius:var(--radius);overflow:hidden;margin-bottom:24px;background:var(--bg2);border:1px solid rgba(255,255,255,.05)}
+.hero-media{width:100%;max-height:500px;object-fit:cover;display:block;cursor:pointer}
+.hero-media-video{width:100%;height:400px;border:none}
+.hero-info{padding:24px}
+.hero-info .date-badge{font-size:.75rem;color:var(--blue);margin-bottom:8px}
+.hero-info h2{font-size:1.6rem;margin-bottom:12px}
+.hero-info .explanation{color:var(--gray);font-size:.9rem;line-height:1.6}
+.explanation.collapsed{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.read-more-btn{background:none;border:none;color:var(--blue);cursor:pointer;font-size:.85rem;margin-top:8px}
+.hero-actions{display:flex;gap:12px;margin-top:16px}
+.hero-actions a,.hero-actions button{background:var(--bg3);border:1px solid rgba(255,255,255,.1);color:var(--white);padding:8px 16px;border-radius:6px;text-decoration:none;font-size:.8rem;cursor:pointer;transition:all .2s}
+.hero-actions a:hover,.hero-actions button:hover{border-color:var(--blue)}
+.copyright{font-size:.7rem;color:var(--gray);margin-top:8px}
+.apod-nav{display:flex;gap:12px;align-items:center;margin-bottom:20px}
+.apod-nav button{background:var(--bg3);border:1px solid rgba(255,255,255,.1);color:var(--white);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:.85rem}
+.apod-nav button:hover{border-color:var(--blue)}
+.stats-strip{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px;padding:16px;background:var(--bg2);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05)}
+.stats-strip .ss-item{font-size:.85rem;color:var(--gray)}
+.stats-strip .ss-item strong{color:var(--white)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px}
+.gallery-card{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .2s}
+.gallery-card:hover{border-color:var(--blue);transform:translateY(-2px)}
+.gallery-card img{width:100%;height:180px;object-fit:cover}
+.gallery-card .info{padding:12px}
+.gallery-card .info h4{font-size:.85rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gallery-card .info .meta{font-size:.75rem;color:var(--gray);display:flex;justify-content:space-between}
+.media-badge{font-size:.6rem;padding:2px 6px;border-radius:8px;background:rgba(30,107,255,.2);color:var(--blue);font-weight:600}
+.lightbox{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:300;justify-content:center;align-items:center;cursor:pointer}
+.lightbox.show{display:flex}
+.lightbox img{max-width:95%;max-height:95%;object-fit:contain}
+.skeleton{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius);min-height:200px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.error-banner{background:rgba(255,59,59,.1);border:1px solid rgba(255,59,59,.3);color:var(--red);padding:12px 16px;border-radius:var(--radius);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;font-size:.85rem}
+.error-banner button{background:var(--red);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem}
+.days-slider{display:flex;align-items:center;gap:8px}
+.days-slider input[type=range]{accent-color:var(--blue)}
+.days-slider .days-val{min-width:30px;text-align:center;font-size:.85rem;font-weight:600}
+.status-toggle{display:flex;gap:4px}
+.status-toggle button{background:var(--bg3);border:1px solid rgba(255,255,255,.1);color:var(--gray);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.8rem;transition:all .2s}
+.status-toggle button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+@media(max-width:768px){
+  .tab-btn span{display:none}
+  .split-view{flex-direction:column}
+  .event-list,.globe-container{width:100%}
+  .globe-container{min-height:350px}
+  .stats{flex-direction:column}
+  header h1{font-size:1rem}
+  .gallery{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .gallery{grid-template-columns:1fr}
+  .controls{flex-direction:column;align-items:stretch}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 110 92" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="55" cy="46" r="40" fill="#1e6bff" opacity=".15"/>
+      <path d="M55 6C28 6 6 28 6 55s22 36 49 36 49-18 49-36S82 6 55 6z" stroke="#1e6bff" stroke-width="2" fill="none" opacity=".5"/>
+      <text x="18" y="58" font-family="Arial Black,sans-serif" font-size="28" font-weight="900" fill="#fff">NASA</text>
+    </svg>
+  </div>
+  <h1>NASA Live Dashboard</h1>
+  <span id="lastRefresh">Last refresh: —</span>
+  <button id="refreshAll" onclick="refreshAll()">⟳ Refresh All</button>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab(0)" data-tab="0">☄️ <span>Asteroid Watch</span></button>
+  <button class="tab-btn" onclick="switchTab(1)" data-tab="1">🌍 <span>Earth Events</span></button>
+  <button class="tab-btn" onclick="switchTab(2)" data-tab="2">📷 <span>Picture of the Day</span></button>
+</nav>
+
+<!-- TAB 1: Asteroid Watch -->
+<div class="tab-panel active" id="tab0">
+  <div class="controls" id="neo-controls">
+    <label>Start <input type="date" id="neoStart"></label>
+    <label>End <input type="date" id="neoEnd"></label>
+    <button onclick="fetchNeo()">Fetch</button>
+    <div style="flex:1"></div>
+  </div>
+  <div class="stats" id="neo-stats"></div>
+  <div class="search-row">
+    <input type="text" id="neoSearch" placeholder="Search by asteroid name...">
+    <label class="toggle-label" onclick="toggleHazardous()">
+      <div class="toggle-switch" id="hazToggle"></div> Hazardous Only
+    </label>
+  </div>
+  <div id="neo-loading" class="skeleton" style="display:none"></div>
+  <div id="neo-error"></div>
+  <div id="neo-table-wrap" style="overflow-x:auto"></div>
+  <div class="bar-chart-section" id="neo-chart-section" style="display:none">
+    <h3>Top 10 Closest Approaches (Lunar Distance)</h3>
+    <div id="neo-bars"></div>
+  </div>
+</div>
+
+<!-- TAB 2: Earth Events -->
+<div class="tab-panel" id="tab1">
+  <div class="controls" id="eonet-controls">
+    <div class="status-toggle">
+      <button class="active" onclick="setEonetStatus('open',this)">Open</button>
+      <button onclick="setEonetStatus('closed',this)">Closed</button>
+      <button onclick="setEonetStatus('',this)">All</button>
+    </div>
+    <div class="days-slider">
+      <label>Days: </label>
+      <input type="range" min="7" max="90" value="60" step="1" id="eonetDays" oninput="document.getElementById('eonetDaysVal').textContent=this.value">
+      <span class="days-val" id="eonetDaysVal">60</span>
+    </div>
+    <label>Category <select id="eonetCat"><option value="">All</option></select></label>
+    <button onclick="fetchEonet()">Fetch</button>
+  </div>
+  <div class="stats" id="eonet-stats"></div>
+  <div id="eonet-loading" class="skeleton" style="display:none"></div>
+  <div id="eonet-error"></div>
+  <div class="split-view">
+    <div class="event-list" id="event-list"></div>
+    <div class="globe-container" id="globe-container"></div>
+  </div>
+  <div class="event-detail" id="event-detail"></div>
+  <div class="donut-section" id="donut-section" style="display:none">
+    <svg id="donut-svg" width="200" height="200" viewBox="0 0 200 200"></svg>
+    <div class="donut-legend" id="donut-legend"></div>
+  </div>
+</div>
+
+<!-- TAB 3: APOD -->
+<div class="tab-panel" id="tab2">
+  <div class="apod-nav">
+    <button onclick="apodPrev()">← Yesterday</button>
+    <input type="date" id="apodDate" min="1995-06-16" onchange="fetchApodByDate(this.value)">
+    <button onclick="apodToday()">Today →</button>
+  </div>
+  <div id="apod-loading" class="skeleton" style="display:none"></div>
+  <div id="apod-error"></div>
+  <div class="hero" id="apod-hero" style="display:none"></div>
+  <div class="stats-strip" id="apod-stats"></div>
+  <div class="search-row">
+    <input type="text" id="gallerySearch" placeholder="Filter gallery by title..." oninput="filterGallery()">
+    <label class="toggle-label" onclick="toggleMediaFilter('image')">
+      <div class="toggle-switch" id="imgToggle"></div> Images Only
+    </label>
+    <label class="toggle-label" onclick="toggleMediaFilter('video')">
+      <div class="toggle-switch" id="vidToggle"></div> Videos Only
+    </label>
+    <button class="btn" onclick="fetchRandomGallery()">Shuffle 🔀</button>
+  </div>
+  <div id="gallery-loading" class="skeleton" style="display:none;min-height:100px"></div>
+  <div class="gallery" id="apod-gallery"></div>
+</div>
+
+<!-- Shared Modal -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+const API_KEY='MnNoal3z28gQE38nEjYEbe05kN8MKSZw1eqwEn0h';
+const NASA_BASE='https://api.nasa.gov';
+const EONET_BASE='https://eonet.gsfc.nasa.gov/api/v3';
+
+// Cache
+const cache={};
+function cacheGet(url){const c=cache[url];if(!c)return null;if(Date.now()-c.time>c.ttl)return delete cache[url],null;return c.data}
+function cacheSet(url,data,ttl){cache[url]={data,time:Date.now(),ttl}}
+
+// Debounce
+function debounce(fn,ms=300){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}}
+
+// Fetch wrapper
+async function apiFetch(url,ttl=300000){
+  const cached=cacheGet(url);
+  if(cached)return cached;
+  const res=await fetch(url);
+  if(res.status===429){throw{status:429,message:'Rate limit reached — try again in a moment'}}
+  if(!res.ok)throw{status:res.status,message:`HTTP ${res.status}`};
+  const data=await res.json();
+  cacheSet(url,data,ttl);
+  return data;
+}
+
+function showLoading(id){document.getElementById(id).style.display='block'}
+function hideLoading(id){document.getElementById(id).style.display='none'}
+function showError(id,msg,retryFn){
+  document.getElementById(id).innerHTML=`<div class="error-banner">${msg} <button onclick="${retryFn}">Retry</button></div>`;
+}
+function clearError(id){document.getElementById(id).innerHTML=''}
+function updateRefresh(){document.getElementById('lastRefresh').textContent='Last refresh: '+new Date().toLocaleTimeString()}
+
+// Tab switching
+let currentTab=0;
+function switchTab(i){
+  currentTab=i;
+  document.querySelectorAll('.tab-panel').forEach((p,j)=>p.classList.toggle('active',j===i));
+  document.querySelectorAll('.tab-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+  if(i===1&&globeRenderer)onGlobeResize();
+}
+
+function refreshAll(){fetchNeo();fetchEonet();fetchApodToday();fetchRandomGallery();updateRefresh()}
+
+// ========== TAB 1: NEO ==========
+let neoData=[],neoSortCol='miss',neoSortAsc=true,hazOnly=false;
+function initNeo(){
+  const today=new Date();
+  const start=new Date(today);start.setDate(start.getDate()-3);
+  const end=new Date(today);end.setDate(end.getDate()+3);
+  document.getElementById('neoStart').value=fmtDate(start);
+  document.getElementById('neoEnd').value=fmtDate(end);
+  fetchNeo();
+}
+function fmtDate(d){return d.toISOString().split('T')[0]}
+
+async function fetchNeo(){
+  const s=document.getElementById('neoStart').value;
+  const e=document.getElementById('neoEnd').value;
+  if(!s||!e)return;
+  const d1=new Date(s),d2=new Date(e);
+  if((d2-d1)/(86400000)>7){alert('Max 7-day range');return}
+  showLoading('neo-loading');clearError('neo-error');
+  try{
+    const url=`${NASA_BASE}/neo/rest/v1/feed?start_date=${s}&end_date=${e}&api_key=${API_KEY}`;
+    const data=await apiFetch(url,300000);
+    neoData=[];
+    Object.values(data.near_earth_objects).forEach(dayArr=>dayArr.forEach(n=>neoData.push(n)));
+    renderNeoStats();renderNeoTable();renderNeoChart();
+    updateRefresh();
+  }catch(err){showError('neo-error',err.message||'Failed to fetch','fetchNeo()')}
+  hideLoading('neo-loading');
+}
+
+function renderNeoStats(){
+  const total=neoData.length;
+  const haz=neoData.filter(n=>n.is_potentially_hazardous_asteroid).length;
+  const largest=Math.max(...neoData.map(n=>n.estimated_diameter?.meters?.estimated_diameter_max||0));
+  const fastest=Math.max(...neoData.map(n=>{const ca=n.close_approach_data?.[0];return ca?parseFloat(ca.relative_velocity.kilometers_per_second):0}));
+  document.getElementById('neo-stats').innerHTML=`
+    <div class="stat-chip"><div class="label">Total NEOs</div><div class="value">${total}</div></div>
+    <div class="stat-chip ${haz>0?'orange':''}"><div class="label">Potentially Hazardous</div><div class="value">${haz}</div></div>
+    <div class="stat-chip"><div class="label">Largest (m)</div><div class="value">${largest.toFixed(1)}</div></div>
+    <div class="stat-chip"><div class="label">Fastest (km/s)</div><div class="value">${fastest.toFixed(2)}</div></div>`;
+}
+
+function sortNeo(col){if(neoSortCol===col)neoSortAsc=!neoSortAsc;else{neoSortCol=col;neoSortAsc=true}renderNeoTable()}
+
+function getNeoVal(n,col){
+  const ca=n.close_approach_data?.[0];
+  switch(col){
+    case 'name':return n.name.toLowerCase();
+    case 'date':return ca?.close_approach_date||'';
+    case 'miss':return ca?parseFloat(ca.miss_distance.lunar):9999;
+    case 'vel':return ca?parseFloat(ca.relative_velocity.kilometers_per_hour):0;
+    case 'diam':return n.estimated_diameter?.meters?.estimated_diameter_max||0;
+    case 'haz':return n.is_potentially_hazardous_asteroid?1:0;
+    case 'mag':return n.absolute_magnitude_h||0;
+  }
+}
+
+function renderNeoTable(){
+  const search=document.getElementById('neoSearch').value.toLowerCase();
+  let rows=neoData.filter(n=>{
+    if(hazOnly&&!n.is_potentially_hazardous_asteroid)return false;
+    if(search&&!n.name.toLowerCase().includes(search))return false;
+    return true;
+  });
+  rows.sort((a,b)=>{const va=getNeoVal(a,neoSortCol),vb=getNeoVal(b,neoSortCol);if(va<vb)return neoSortAsc?-1:1;if(va>vb)return neoSortAsc?1:-1;return 0});
+  const cols=[['name','Name'],['date','Approach Date'],['miss','Miss Dist (LD)'],['vel','Velocity (km/h)'],['diam','Diameter (m)'],['haz','Hazardous'],['mag','Abs. Mag']];
+  let html='<table><thead><tr>';
+  cols.forEach(([k,l])=>{const sorted=neoSortCol===k;html+=`<th class="${sorted?'sorted':''}" onclick="sortNeo('${k}')">${l}<span class="sort-arrow">${sorted?(neoSortAsc?'▲':'▼'):'⇅'}</span></th>`});
+  html+='</tr></thead><tbody>';
+  rows.forEach(n=>{
+    const ca=n.close_approach_data?.[0];
+    const miss=ca?parseFloat(ca.miss_distance.lunar):null;
+    const missClass=miss===null?'':(miss<5?'miss-red':miss<20?'miss-yellow':'miss-green');
+    const vel=ca?parseFloat(ca.relative_velocity.kilometers_per_hour):0;
+    const diam=n.estimated_diameter?.meters?.estimated_diameter_max||0;
+    html+=`<tr onclick='showNeoModal(${JSON.stringify(n.neo_reference_id)})'>
+      <td>${n.name}</td>
+      <td>${ca?.close_approach_date||'—'}</td>
+      <td class="${missClass}">${miss!==null?miss.toFixed(2):'—'}</td>
+      <td>${vel.toFixed(0)}</td>
+      <td>${diam.toFixed(1)}</td>
+      <td>${n.is_potentially_hazardous_asteroid?'<span class="hazard-badge">⚠️ PHA</span>':''}</td>
+      <td>${n.absolute_magnitude_h?.toFixed(2)||'—'}</td>
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('neo-table-wrap').innerHTML=html;
+}
+
+function showNeoModal(id){
+  const n=neoData.find(x=>x.neo_reference_id===id);
+  if(!n)return;
+  const od=n.orbital_data||{};
+  let caTable='<table><thead><tr><th>Date</th><th>Miss (LD)</th><th>Miss (km)</th><th>Velocity (km/h)</th><th>Orbiting</th></tr></thead><tbody>';
+  (n.close_approach_data||[]).forEach(ca=>{
+    caTable+=`<tr><td>${ca.close_approach_date_full||ca.close_approach_date}</td><td>${parseFloat(ca.miss_distance.lunar).toFixed(2)}</td><td>${parseFloat(ca.miss_distance.kilometers).toFixed(0)}</td><td>${parseFloat(ca.relative_velocity.kilometers_per_hour).toFixed(0)}</td><td>${ca.orbiting_body}</td></tr>`;
+  });
+  caTable+='</tbody></table>';
+  const dMin=n.estimated_diameter?.meters?.estimated_diameter_min?.toFixed(1)||'?';
+  const dMax=n.estimated_diameter?.meters?.estimated_diameter_max?.toFixed(1)||'?';
+  const dMinFt=(n.estimated_diameter?.feet?.estimated_diameter_min?.toFixed(1))||'?';
+  const dMaxFt=(n.estimated_diameter?.feet?.estimated_diameter_max?.toFixed(1))||'?';
+  document.getElementById('modal-content').innerHTML=`
+    <button class="close-btn" onclick="closeModal()">✕</button>
+    <h2>${n.name}</h2>
+    <p style="color:var(--gray);margin-bottom:12px">JPL ID: ${n.neo_reference_id} | Abs Mag: ${n.absolute_magnitude_h}</p>
+    <p style="margin-bottom:8px">Diameter: ${dMin}–${dMax} m (${dMinFt}–${dMaxFt} ft)</p>
+    ${n.is_potentially_hazardous_asteroid?'<p style="color:var(--orange);margin-bottom:12px">⚠️ Potentially Hazardous Asteroid</p>':''}
+    ${od.orbit_class_type?`<p style="margin-bottom:4px">Orbit Class: ${od.orbit_class_type} — ${od.orbit_class_description||''}</p>`:''}
+    ${od.orbital_period?`<p style="margin-bottom:4px">Orbital Period: ${parseFloat(od.orbital_period).toFixed(1)} days</p>`:''}
+    ${od.first_observation_date?`<p style="margin-bottom:12px;color:var(--gray)">Observed: ${od.first_observation_date} to ${od.last_observation_date||'present'}</p>`:''}
+    <h3 style="margin:16px 0 8px;font-size:.95rem">All Close Approaches</h3>
+    ${caTable}
+    <p style="margin-top:16px"><a href="https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=${n.neo_reference_id}" target="_blank">View on JPL Small-Body DB →</a></p>`;
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+
+function toggleHazardous(){hazOnly=!hazOnly;document.getElementById('hazToggle').classList.toggle('on',hazOnly);renderNeoTable()}
+
+document.getElementById('neoSearch').addEventListener('input',debounce(()=>renderNeoTable(),200));
+
+function renderNeoChart(){
+  const sorted=[...neoData].filter(n=>n.close_approach_data?.length).sort((a,b)=>parseFloat(a.close_approach_data[0].miss_distance.lunar)-parseFloat(b.close_approach_data[0].miss_distance.lunar)).slice(0,10);
+  if(!sorted.length){document.getElementById('neo-chart-section').style.display='none';return}
+  document.getElementById('neo-chart-section').style.display='block';
+  const maxLD=Math.max(...sorted.map(n=>parseFloat(n.close_approach_data[0].miss_distance.lunar)));
+  let html='';
+  sorted.forEach(n=>{
+    const ld=parseFloat(n.close_approach_data[0].miss_distance.lunar);
+    const pct=Math.max((ld/maxLD)*100,1);
+    const color=ld<5?'var(--red)':ld<20?'var(--yellow)':'var(--green)';
+    html+=`<div class="bar"><span class="bar-name" title="${n.name}">${n.name.replace(/[()]/g,'').substring(0,20)}</span><div class="bar-fill" style="width:${pct}%;background:${color}"><span class="bar-tooltip">${n.name}: ${ld.toFixed(2)} LD</span></div><span class="bar-val">${ld.toFixed(2)} LD</span></div>`;
+  });
+  document.getElementById('neo-bars').innerHTML=html;
+}
+
+// ========== TAB 2: EONET ==========
+let eonetEvents=[],eonetStatus='open',selectedEvent=null;
+const catEmoji={wildfires:'🔥',volcanoes:'🌋',severeStorms:'🌀',seaLakeIce:'🧊',earthquakes:'🫨',drought:'☀️',dustHaze:'🌫️',floods:'🌊',landslides:'⛰️',snow:'❄️',tempExtremes:'🌡️'};
+const catColors={wildfires:'#ff4444',volcanoes:'#ff8c00',severeStorms:'#00bcd4',seaLakeIce:'#80deea',earthquakes:'#ff5722',drought:'#ffb300',dustHaze:'#9e9e9e',floods:'#2196f3',landslides:'#795548',snow:'#e0e0e0',tempExtremes:'#f44336'};
+
+async function initEonet(){
+  try{
+    const cats=await apiFetch(`${EONET_BASE}/categories?api_key=${API_KEY}`,3600000);
+    const sel=document.getElementById('eonetCat');
+    (cats.categories||[]).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.title;sel.appendChild(o)});
+  }catch(e){}
+  fetchEonet();
+}
+
+function setEonetStatus(s,btn){
+  eonetStatus=s;
+  document.querySelectorAll('#eonet-controls .status-toggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function fetchEonet(){
+  showLoading('eonet-loading');clearError('eonet-error');
+  const days=document.getElementById('eonetDays').value;
+  const cat=document.getElementById('eonetCat').value;
+  let url=`${EONET_BASE}/events?limit=100&days=${days}&api_key=${API_KEY}`;
+  if(eonetStatus)url+=`&status=${eonetStatus}`;
+  if(cat)url+=`&category=${cat}`;
+  try{
+    const data=await apiFetch(url,300000);
+    eonetEvents=data.events||[];
+    renderEonetStats();renderEventList();renderDonut();plotGlobeMarkers();
+    updateRefresh();
+  }catch(err){showError('eonet-error',err.message||'Failed to fetch','fetchEonet()')}
+  hideLoading('eonet-loading');
+}
+
+function renderEonetStats(){
+  const total=eonetEvents.length;
+  const catCount={};
+  eonetEvents.forEach(e=>(e.categories||[]).forEach(c=>{catCount[c.title]=(catCount[c.title]||0)+1}));
+  const topCat=Object.entries(catCount).sort((a,b)=>b[1]-a[1])[0];
+  const recent=[...eonetEvents].sort((a,b)=>new Date(b.geometry?.[0]?.date||0)-new Date(a.geometry?.[0]?.date||0))[0];
+  document.getElementById('eonet-stats').innerHTML=`
+    <div class="stat-chip"><div class="label">Total Events</div><div class="value">${total}</div></div>
+    <div class="stat-chip"><div class="label">Top Category</div><div class="value">${topCat?topCat[0]:'—'}</div></div>
+    <div class="stat-chip"><div class="label">Most Recent</div><div class="value" style="font-size:1rem">${recent?recent.title.substring(0,30):'—'}</div></div>`;
+}
+
+function getCatKey(e){return((e.categories||[])[0]?.id||'').replace(/\s/g,'')}
+function getCatEmoji(e){const k=getCatKey(e);return catEmoji[k]||'📍'}
+function getCatColor(e){const k=getCatKey(e);return catColors[k]||'#1e6bff'}
+
+function renderEventList(){
+  const list=document.getElementById('event-list');
+  if(!eonetEvents.length){list.innerHTML='<p style="color:var(--gray);padding:20px">No events found</p>';return}
+  list.innerHTML=eonetEvents.map((e,i)=>{
+    const date=e.geometry?.[0]?.date?new Date(e.geometry[0].date).toLocaleDateString():'—';
+    const isOpen=!e.closed;
+    const catTitle=(e.categories||[])[0]?.title||'Unknown';
+    return `<div class="event-card ${selectedEvent===e.id?'selected':''}" onclick="selectEvent('${e.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center"><span class="cat-emoji">${getCatEmoji(e)}</span><span class="cat-badge">${catTitle}</span></div>
+      <h4>${e.title}</h4>
+      <div class="meta"><span>${date}</span><span class="status-dot ${isOpen?'open':'closed'}"></span> ${isOpen?'Open':'Closed'}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectEvent(id){
+  selectedEvent=id;
+  const e=eonetEvents.find(x=>x.id===id);
+  renderEventList();
+  if(!e)return;
+  const det=document.getElementById('event-detail');
+  let geoTable='<table><thead><tr><th>Date</th><th>Coordinates</th></tr></thead><tbody>';
+  (e.geometry||[]).forEach(g=>{
+    const coords=g.coordinates?`${g.coordinates[1]?.toFixed(4)}, ${g.coordinates[0]?.toFixed(4)}`:'—';
+    geoTable+=`<tr><td>${new Date(g.date).toLocaleString()}</td><td>${coords}</td></tr>`;
+  });
+  geoTable+='</tbody></table>';
+  const src=(e.sources||[])[0];
+  det.innerHTML=`<h3>${e.title}</h3><p style="color:var(--gray);margin-bottom:12px">ID: ${e.id}</p>${geoTable}
+    ${src?`<p style="margin-top:12px"><a href="${src.url}" target="_blank" style="color:var(--blue)">View Source →</a></p>`:''}`;
+  det.classList.add('show');
+  // Focus globe on event
+  if(e.geometry?.[0]?.coordinates&&globeCamera){
+    const lng=e.geometry[0].coordinates[0],lat=e.geometry[0].coordinates[1];
+    const phi=(90-lat)*Math.PI/180,theta=(lng+180)*Math.PI/180;
+    const r=3;
+    globeCamera.position.set(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));
+    globeCamera.lookAt(0,0,0);
+  }
+}
+
+// Donut chart
+function renderDonut(){
+  const catCount={};
+  eonetEvents.forEach(e=>{const k=(e.categories||[])[0]?.title||'Other';catCount[k]=(catCount[k]||0)+1});
+  const entries=Object.entries(catCount).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length){document.getElementById('donut-section').style.display='none';return}
+  document.getElementById('donut-section').style.display='flex';
+  const total=entries.reduce((s,e)=>s+e[1],0);
+  const colors=['#ff4444','#ff8c00','#00bcd4','#2196f3','#4ade80','#ffb300','#9c27b0','#795548','#e0e0e0','#f44336'];
+  const cx=100,cy=100,r=70,ir=45;
+  let angle=0;
+  let paths='';
+  entries.forEach(([cat,count],i)=>{
+    const slice=count/total*Math.PI*2;
+    const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
+    const x2=cx+r*Math.cos(angle+slice),y2=cy+r*Math.sin(angle+slice);
+    const ix1=cx+ir*Math.cos(angle),iy1=cy+ir*Math.sin(angle);
+    const ix2=cx+ir*Math.cos(angle+slice),iy2=cy+ir*Math.sin(angle+slice);
+    const large=slice>Math.PI?1:0;
+    const color=colors[i%colors.length];
+    paths+=`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${ix2},${iy2} A${ir},${ir} 0 ${large} 0 ${ix1},${iy1} Z" fill="${color}" style="cursor:pointer" onclick="filterDonutCat('${cat}')"><title>${cat}: ${count}</title></path>`;
+    angle+=slice;
+  });
+  document.getElementById('donut-svg').innerHTML=paths+`<text x="${cx}" y="${cy}" text-anchor="middle" dy=".3em" fill="white" font-size="18" font-weight="bold">${total}</text>`;
+  document.getElementById('donut-legend').innerHTML=entries.map(([cat,count],i)=>`<div class="item" onclick="filterDonutCat('${cat}')"><span class="swatch" style="background:${colors[i%colors.length]}"></span>${cat} (${count})</div>`).join('');
+}
+
+function filterDonutCat(cat){
+  const sel=document.getElementById('eonetCat');
+  const opt=[...sel.options].find(o=>o.textContent===cat);
+  if(opt){sel.value=opt.value;fetchEonet()}
+}
+
+// ========== 3D GLOBE ==========
+let globeScene,globeCamera,globeRenderer,globeEarth,globeMarkers=[],globeAnimId,orbitState={isDragging:false,prevMouse:{x:0,y:0},spherical:{theta:0,phi:Math.PI/2},targetSpherical:{theta:0,phi:Math.PI/2},distance:3,autoRotate:true};
+
+function initGlobe(){
+  const container=document.getElementById('globe-container');
+  const w=container.clientWidth||600,h=container.clientHeight||500;
+  globeScene=new THREE.Scene();
+  globeCamera=new THREE.PerspectiveCamera(50,w/h,0.1,1000);
+  globeCamera.position.set(0,0,3);
+  globeRenderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  globeRenderer.setSize(w,h);
+  globeRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  container.appendChild(globeRenderer.domElement);
+
+  // Stars
+  const starsGeo=new THREE.BufferGeometry();
+  const starsVerts=[];
+  for(let i=0;i<2000;i++){const r=100;starsVerts.push((Math.random()-.5)*r,(Math.random()-.5)*r,(Math.random()-.5)*r)}
+  starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(starsVerts,3));
+  globeScene.add(new THREE.Points(starsGeo,new THREE.PointsMaterial({color:0xffffff,size:.15})));
+
+  // Earth sphere
+  const earthGeo=new THREE.SphereGeometry(1,64,64);
+  const loader=new THREE.TextureLoader();
+  const earthMat=new THREE.MeshPhongMaterial({color:0x2255aa,emissive:0x112244,specular:0x333333,shininess:15});
+  globeEarth=new THREE.Mesh(earthGeo,earthMat);
+  globeScene.add(globeEarth);
+
+  // Load texture
+  loader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',tex=>{
+    earthMat.map=tex;earthMat.color.set(0xffffff);earthMat.emissive.set(0x000000);earthMat.needsUpdate=true;
+  },undefined,()=>{/* fallback: keep procedural blue */});
+
+  // Atmosphere glow
+  const atmosGeo=new THREE.SphereGeometry(1.05,64,64);
+  const atmosMat=new THREE.MeshBasicMaterial({color:0x4488ff,transparent:true,opacity:0.12,side:THREE.BackSide});
+  globeScene.add(new THREE.Mesh(atmosGeo,atmosMat));
+  const outerGlow=new THREE.SphereGeometry(1.12,64,64);
+  const outerMat=new THREE.MeshBasicMaterial({color:0x2266cc,transparent:true,opacity:0.06,side:THREE.BackSide});
+  globeScene.add(new THREE.Mesh(outerGlow,outerMat));
+
+  // Lights
+  const amb=new THREE.AmbientLight(0x444466,0.6);
+  const dir=new THREE.DirectionalLight(0xffffff,1);
+  dir.position.set(5,3,5);
+  globeScene.add(amb,dir);
+
+  // Orbit controls (manual)
+  const el=globeRenderer.domElement;
+  el.addEventListener('mousedown',e=>{orbitState.isDragging=true;orbitState.autoRotate=false;orbitState.prevMouse={x:e.clientX,y:e.clientY}});
+  el.addEventListener('mousemove',e=>{
+    if(!orbitState.isDragging)return;
+    const dx=e.clientX-orbitState.prevMouse.x,dy=e.clientY-orbitState.prevMouse.y;
+    orbitState.targetSpherical.theta-=dx*0.005;
+    orbitState.targetSpherical.phi=Math.max(0.1,Math.min(Math.PI-0.1,orbitState.targetSpherical.phi-dy*0.005));
+    orbitState.prevMouse={x:e.clientX,y:e.clientY};
+  });
+  window.addEventListener('mouseup',()=>{orbitState.isDragging=false});
+  el.addEventListener('wheel',e=>{e.preventDefault();orbitState.distance=Math.max(1.5,Math.min(8,orbitState.distance+e.deltaY*0.002))},{passive:false});
+  // Touch
+  el.addEventListener('touchstart',e=>{if(e.touches.length===1){orbitState.isDragging=true;orbitState.autoRotate=false;orbitState.prevMouse={x:e.touches[0].clientX,y:e.touches[0].clientY}}},{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(!orbitState.isDragging||e.touches.length!==1)return;
+    const dx=e.touches[0].clientX-orbitState.prevMouse.x,dy=e.touches[0].clientY-orbitState.prevMouse.y;
+    orbitState.targetSpherical.theta-=dx*0.005;
+    orbitState.targetSpherical.phi=Math.max(0.1,Math.min(Math.PI-0.1,orbitState.targetSpherical.phi-dy*0.005));
+    orbitState.prevMouse={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  },{passive:true});
+  el.addEventListener('touchend',()=>{orbitState.isDragging=false},{passive:true});
+
+  // Raycaster for marker clicks
+  const raycaster=new THREE.Raycaster();
+  const mouse=new THREE.Vector2();
+  el.addEventListener('click',e=>{
+    const rect=el.getBoundingClientRect();
+    mouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+    mouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(mouse,globeCamera);
+    const hits=raycaster.intersectObjects(globeMarkers);
+    if(hits.length){const eid=hits[0].object.userData.eventId;if(eid)selectEvent(eid)}
+  });
+
+  animateGlobe();
+}
+
+function animateGlobe(){
+  globeAnimId=requestAnimationFrame(animateGlobe);
+  if(orbitState.autoRotate)orbitState.targetSpherical.theta+=0.001;
+  orbitState.spherical.theta+=(orbitState.targetSpherical.theta-orbitState.spherical.theta)*0.08;
+  orbitState.spherical.phi+=(orbitState.targetSpherical.phi-orbitState.spherical.phi)*0.08;
+  const r=orbitState.distance,phi=orbitState.spherical.phi,theta=orbitState.spherical.theta;
+  globeCamera.position.set(r*Math.sin(phi)*Math.sin(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.cos(theta));
+  globeCamera.lookAt(0,0,0);
+  // Pulse markers
+  const t=Date.now()*0.003;
+  globeMarkers.forEach(m=>{const s=0.025+Math.sin(t+m.userData.phase)*0.008;m.scale.set(s*50,s*50,s*50)});
+  globeRenderer.render(globeScene,globeCamera);
+}
+
+function latLngToVec3(lat,lng,r=1.01){
+  const phi=(90-lat)*Math.PI/180;
+  const theta=(lng+180)*Math.PI/180;
+  return new THREE.Vector3(-r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));
+}
+
+function plotGlobeMarkers(){
+  globeMarkers.forEach(m=>globeScene.remove(m));
+  globeMarkers=[];
+  eonetEvents.forEach(e=>{
+    const geo=(e.geometry||[])[0];
+    if(!geo||!geo.coordinates)return;
+    const lng=geo.coordinates[0],lat=geo.coordinates[1];
+    const pos=latLngToVec3(lat,lng);
+    const color=new THREE.Color(getCatColor(e));
+    const markerGeo=new THREE.SphereGeometry(0.025,8,8);
+    const markerMat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.9});
+    const marker=new THREE.Mesh(markerGeo,markerMat);
+    marker.position.copy(pos);
+    marker.userData={eventId:e.id,phase:Math.random()*Math.PI*2};
+    globeScene.add(marker);
+    globeMarkers.push(marker);
+    // Glow ring
+    const ringGeo=new THREE.RingGeometry(0.025,0.045,16);
+    const ringMat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.3,side:THREE.DoubleSide});
+    const ring=new THREE.Mesh(ringGeo,ringMat);
+    ring.position.copy(pos);
+    ring.lookAt(0,0,0);
+    globeScene.add(ring);
+    globeMarkers.push(ring);
+  });
+}
+
+function onGlobeResize(){
+  const c=document.getElementById('globe-container');
+  if(!globeRenderer||!c)return;
+  const w=c.clientWidth,h=c.clientHeight;
+  globeCamera.aspect=w/h;globeCamera.updateProjectionMatrix();
+  globeRenderer.setSize(w,h);
+}
+window.addEventListener('resize',onGlobeResize);
+
+// ========== TAB 3: APOD ==========
+let currentApod=null,galleryItems=[],mediaFilter='';
+
+function initApod(){
+  const today=fmtDate(new Date());
+  document.getElementById('apodDate').value=today;
+  document.getElementById('apodDate').max=today;
+  fetchApodToday();
+  fetchRandomGallery();
+  renderApodStats();
+}
+
+async function fetchApodToday(){
+  showLoading('apod-loading');clearError('apod-error');
+  try{
+    const url=`${NASA_BASE}/planetary/apod?api_key=${API_KEY}&thumbs=true`;
+    const data=await apiFetch(url,3600000);
+    currentApod=data;
+    document.getElementById('apodDate').value=data.date;
+    renderHero();updateRefresh();
+  }catch(err){showError('apod-error',err.message||'Failed to fetch','fetchApodToday()')}
+  hideLoading('apod-loading');
+}
+
+async function fetchApodByDate(date){
+  if(!date)return;
+  showLoading('apod-loading');clearError('apod-error');
+  try{
+    const url=`${NASA_BASE}/planetary/apod?api_key=${API_KEY}&date=${date}&thumbs=true`;
+    const data=await apiFetch(url,3600000);
+    currentApod=data;renderHero();
+  }catch(err){showError('apod-error',err.message||'Failed to fetch',`fetchApodByDate('${date}')`)}
+  hideLoading('apod-loading');
+}
+
+function apodPrev(){
+  const d=new Date(document.getElementById('apodDate').value);
+  d.setDate(d.getDate()-1);
+  if(d>=new Date('1995-06-16')){const ds=fmtDate(d);document.getElementById('apodDate').value=ds;fetchApodByDate(ds)}
+}
+function apodToday(){const ds=fmtDate(new Date());document.getElementById('apodDate').value=ds;fetchApodByDate(ds)}
+
+function renderHero(){
+  if(!currentApod){document.getElementById('apod-hero').style.display='none';return}
+  const a=currentApod;
+  document.getElementById('apod-hero').style.display='block';
+  const isImg=a.media_type==='image';
+  const media=isImg?
+    `<img class="hero-media" src="${a.url}" alt="${a.title}" onclick="openLightbox('${a.hdurl||a.url}')">`
+    :`<iframe class="hero-media-video" src="${a.url}" allowfullscreen></iframe>`;
+  document.getElementById('apod-hero').innerHTML=`
+    ${media}
+    <div class="hero-info">
+      <div class="date-badge">${new Date(a.date).toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+      <h2>${a.title}</h2>
+      <div class="explanation collapsed" id="apodExpl">${a.explanation||''}</div>
+      <button class="read-more-btn" onclick="toggleExplanation()">Read more</button>
+      ${a.copyright?`<div class="copyright">© ${a.copyright}</div>`:''}
+      <div class="hero-actions">
+        ${isImg&&a.hdurl?`<a href="${a.hdurl}" target="_blank" download>⬇ Download HD</a>`:''}
+        <button onclick="navigator.clipboard.writeText('${a.url}');this.textContent='Copied!'">📋 Share</button>
+      </div>
+    </div>`;
+}
+
+function toggleExplanation(){
+  const el=document.getElementById('apodExpl');
+  if(el)el.classList.toggle('collapsed');
+}
+
+function openLightbox(url){
+  document.getElementById('lightbox-img').src=url;
+  document.getElementById('lightbox').classList.add('show');
+}
+
+async function fetchRandomGallery(){
+  document.getElementById('gallery-loading').style.display='block';
+  try{
+    const url=`${NASA_BASE}/planetary/apod?api_key=${API_KEY}&count=9&thumbs=true`;
+    const data=await apiFetch(url+'&_t='+Date.now(),3600000);
+    galleryItems=data;renderGallery();
+  }catch(err){console.error(err)}
+  document.getElementById('gallery-loading').style.display='none';
+}
+
+function renderGallery(){
+  const search=document.getElementById('gallerySearch').value.toLowerCase();
+  let items=galleryItems.filter(a=>{
+    if(search&&!a.title.toLowerCase().includes(search)&&!(a.explanation||'').toLowerCase().includes(search))return false;
+    if(mediaFilter&&a.media_type!==mediaFilter)return false;
+    return true;
+  });
+  document.getElementById('apod-gallery').innerHTML=items.map(a=>{
+    const thumb=a.media_type==='video'?(a.thumbnail_url||''):a.url;
+    return `<div class="gallery-card" onclick="loadGalleryItem(${galleryItems.indexOf(a)})">
+      ${thumb?`<img src="${thumb}" alt="${a.title}" loading="lazy">`:`<div style="height:180px;background:var(--bg3);display:flex;align-items:center;justify-content:center">🎬</div>`}
+      <div class="info"><h4>${a.title}</h4><div class="meta"><span>${a.date}</span><span class="media-badge">${a.media_type==='image'?'IMAGE':'VIDEO'}</span></div></div>
+    </div>`;
+  }).join('');
+}
+
+function loadGalleryItem(i){
+  currentApod=galleryItems[i];
+  document.getElementById('apodDate').value=currentApod.date;
+  renderHero();
+  document.getElementById('tab2').scrollTo({top:0,behavior:'smooth'});
+}
+
+function toggleMediaFilter(type){
+  if(mediaFilter===type)mediaFilter='';else mediaFilter=type;
+  document.getElementById('imgToggle').classList.toggle('on',mediaFilter==='image');
+  document.getElementById('vidToggle').classList.toggle('on',mediaFilter==='video');
+  renderGallery();
+}
+function filterGallery(){renderGallery()}
+
+function renderApodStats(){
+  const firstApod=new Date('1995-06-16');
+  const today=new Date();
+  const daysSince=Math.floor((today-firstApod)/86400000);
+  document.getElementById('apod-stats').innerHTML=`
+    <div class="ss-item">📸 APOD has published every day for <strong>${daysSince.toLocaleString()}</strong> days</div>
+    <div class="ss-item">🚀 Running since <strong>June 16, 1995</strong></div>`;
+}
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded',()=>{
+  initNeo();
+  initEonet();
+  initGlobe();
+  initApod();
+});
+</script>
+</body>
+</html>
