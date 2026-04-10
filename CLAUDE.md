@@ -58,4 +58,4 @@ When I say "Show my URLs" or "Where's my stuff?":
 
 ## Image Generation
 You have an MCP tool (`mcp__media-pipeline__create_asset`) that generates images
-using Google Gemini. Use it when assets or images are needed for projects.
+using OpenAI (dall-e-3 by default, gpt-image-1 also supported). Use it when assets or images are needed for projects.

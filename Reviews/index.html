@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Review Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    .review-text { font-family: Georgia, 'Times New Roman', serif; line-height: 1.85; }
+
+    textarea:focus, input:focus, select:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.4);
+    }
+
+    /* Gradient sentiment slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e, #6366f1);
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid #6366f1;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid #6366f1;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+    .dark input[type=range]::-webkit-slider-thumb { background: #1f2937; }
+    .dark input[type=range]::-moz-range-thumb     { background: #1f2937; }
+
+    /* Fade-in animation */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in-up { animation: fadeInUp 0.4s ease forwards; }
+
+    /* Dot background */
+    .bg-dots {
+      background-image: radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    /* Header */
+    .header-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+
+    /* Generate button */
+    .btn-generate {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      transition: all 0.2s;
+    }
+    .btn-generate:hover:not(:disabled) {
+      background: linear-gradient(135deg, #4338ca, #6d28d9);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.4);
+      transform: translateY(-1px);
+    }
+    .btn-generate:active:not(:disabled) { transform: translateY(0); }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen transition-colors">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── Dark mode ─────────────────────────────────────────────────────────────
+    function useDarkMode() {
+      const [dark, setDark] = useState(() => {
+        const saved = localStorage.getItem('rg-dark');
+        if (saved !== null) return saved === 'true';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      });
+      useEffect(() => {
+        document.documentElement.classList.toggle('dark', dark);
+        localStorage.setItem('rg-dark', dark);
+      }, [dark]);
+      return [dark, setDark];
+    }
+
+    // ── Constants ─────────────────────────────────────────────────────────────
+    const MODELS = [
+      { id: 'gpt-4o',        label: 'GPT-4o' },
+      { id: 'gpt-4o-mini',   label: 'GPT-4o mini' },
+      { id: 'gpt-4-turbo',   label: 'GPT-4-turbo' },
+      { id: 'gpt-3.5-turbo', label: 'GPT-3.5-turbo' },
+    ];
+
+    const CATEGORIES = [
+      'Electronics', 'Clothing & Apparel', 'Beauty & Personal Care',
+      'Kitchen & Home', 'Fitness & Sports', 'Software & Apps',
+      'Books', 'Food & Beverage', 'Toys & Games', 'Automotive',
+      'Health & Wellness', 'Office Supplies', 'Pet Supplies', 'Travel',
+    ];
+
+    const LENGTHS = [
+      { id: 'short',  label: 'Short',  desc: '~75–100 w',  words: '75 to 100' },
+      { id: 'medium', label: 'Medium', desc: '~200–250 w', words: '200 to 250' },
+      { id: 'long',   label: 'Long',   desc: '~400–500 w', words: '400 to 500' },
+    ];
+
+    const STYLES = ['Casual', 'Professional', 'Enthusiastic', 'Skeptical', 'Technical', 'Story-driven'];
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    function sentimentLabel(v) {
+      if (v <= 2)  return 'Very Negative';
+      if (v <= 4)  return 'Mostly Negative';
+      if (v === 5) return 'Mixed / Neutral';
+      if (v <= 7)  return 'Mostly Positive';
+      return 'Very Positive';
+    }
+
+    function sentimentColor(v) {
+      if (v <= 2)  return 'text-red-500';
+      if (v <= 4)  return 'text-orange-500';
+      if (v === 5) return 'text-yellow-500';
+      if (v <= 7)  return 'text-green-500';
+      return 'text-indigo-500';
+    }
+
+    function sentimentToStars(v) {
+      return Math.round((v / 10) * 5 * 2) / 2;
+    }
+
+    function StarDisplay({ value }) {
+      const stars = [];
+      for (let i = 1; i <= 5; i++) {
+        const diff = value - (i - 1);
+        let type = diff >= 1 ? 'full' : diff >= 0.5 ? 'half' : 'empty';
+        stars.push(
+          <span key={i} className="text-xl leading-none">
+            {type === 'full'  && <span className="text-yellow-400">★</span>}
+            {type === 'half'  && <span className="text-yellow-400">⯨</span>}
+            {type === 'empty' && <span className="text-gray-300 dark:text-gray-600">★</span>}
+          </span>
+        );
+      }
+      return <div className="flex items-center gap-0.5">{stars}</div>;
+    }
+
+    function wordCount(text) {
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard?.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      });
+    }
+
+    async function callOpenAI({ key, model, systemPrompt, userPrompt }) {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt },
+          ],
+          temperature: 0.9,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error: HTTP ${res.status}`);
+      }
+      return (await res.json()).choices[0].message.content;
+    }
+
+    function buildPrompt({ productName, category, length, style, sentiment, keywords }) {
+      const lengthObj = LENGTHS.find(l => l.id === length);
+      const descriptor = sentimentLabel(sentiment);
+      const kw = keywords.trim();
+      return {
+        system: [
+          `You are a realistic product reviewer. Write a ${lengthObj.words}-word ${style.toLowerCase()} product review for "${productName}" in the ${category} category.`,
+          `The review sentiment should be ${descriptor} (score ${sentiment}/10).`,
+          kw ? `Naturally incorporate the following details or keywords: ${kw}.` : '',
+          'Do not break character. Write only the review text — no labels, no preamble, no subject line.',
+        ].filter(Boolean).join(' '),
+        user: 'Write the review now.',
+      };
+    }
+
+    // ── UI Components ─────────────────────────────────────────────────────────
+    function Label({ children, htmlFor }) {
+      return (
+        <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          {children}
+        </label>
+      );
+    }
+
+    function Input({ id, value, onChange, placeholder, className = '' }) {
+      return (
+        <input
+          id={id} value={value} onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm transition-shadow placeholder-gray-400 dark:placeholder-gray-500 ${className}`}
+        />
+      );
+    }
+
+    function Select({ id, value, onChange, children, className = '' }) {
+      return (
+        <select
+          id={id} value={value} onChange={e => onChange(e.target.value)}
+          className={`w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm cursor-pointer transition-shadow ${className}`}
+        >
+          {children}
+        </select>
+      );
+    }
+
+    function Card({ children, className = '' }) {
+      return (
+        <div className={`bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700/60 shadow-sm p-6 ${className}`}>
+          {children}
+        </div>
+      );
+    }
+
+    function CardTitle({ children, icon }) {
+      return (
+        <h2 className="flex items-center text-sm font-semibold text-gray-800 dark:text-gray-100 mb-5">
+          {icon && (
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-base mr-2 shrink-0">
+              {icon}
+            </span>
+          )}
+          {children}
+        </h2>
+      );
+    }
+
+    function ErrorMsg({ msg }) {
+      if (!msg) return null;
+      return (
+        <div className="flex items-start gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          <span className="mt-0.5 shrink-0">⚠️</span>
+          <span>{msg}</span>
+        </div>
+      );
+    }
+
+    // API key is entered by the user and stored in localStorage — never hardcoded.
+
+    // ── Main App ──────────────────────────────────────────────────────────────
+    function App() {
+      const [dark, setDark] = useDarkMode();
+
+      const [apiKey, setApiKey] = useState(() => localStorage.getItem('rg-apikey') || '');
+      useEffect(() => { localStorage.setItem('rg-apikey', apiKey); }, [apiKey]);
+
+      const [model, setModel]                   = useState('gpt-4o');
+      const [productName, setProductName]       = useState('');
+      const [category, setCategory]             = useState('Electronics');
+      const [categoryCustom, setCategoryCustom] = useState('');
+      const [useCustomCat, setUseCustomCat]     = useState(false);
+      const [length, setLength]                 = useState('medium');
+      const [style, setStyle]                   = useState('Casual');
+      const [sentiment, setSentiment]           = useState(7);
+      const [keywords, setKeywords]             = useState('');
+      const [loading, setLoading]               = useState(false);
+      const [review, setReview]                 = useState('');
+      const [reviewKey, setReviewKey]           = useState(0);
+      const [stars, setStars]                   = useState(0);
+      const [errors, setErrors]                 = useState({});
+      const [apiError, setApiError]             = useState('');
+      const [copied, setCopied]                 = useState(false);
+      const [aboutOpen, setAboutOpen]           = useState(false);
+
+      const outputRef = useRef(null);
+      const formRef   = useRef(null);
+
+      const effectiveCategory = useCustomCat ? (categoryCustom || 'General') : category;
+
+      function validate() {
+        const e = {};
+        if (!apiKey.trim()) e.apiKey = 'OpenAI API key is required.';
+        if (!productName.trim()) e.productName = 'Product name is required.';
+        return e;
+      }
+
+      async function generate() {
+        const e = validate();
+        if (Object.keys(e).length) { setErrors(e); return; }
+        setErrors({});
+        setApiError('');
+        setLoading(true);
+        try {
+          const { system, user } = buildPrompt({ productName, category: effectiveCategory, length, style, sentiment, keywords });
+          const text = await callOpenAI({ key: apiKey.trim(), model, systemPrompt: system, userPrompt: user });
+          setReview(text.trim());
+          setReviewKey(k => k + 1);
+          setStars(sentimentToStars(sentiment));
+          setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+        } catch (err) {
+          setApiError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      function handleCopy() {
+        copyToClipboard(review);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+
+      const chipBtn = (active) =>
+        `px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+          active
+            ? 'bg-indigo-600 text-white border-indigo-600'
+            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-600'
+        }`;
+
+      return (
+        <div className="min-h-screen flex flex-col bg-dots">
+
+          {/* About Modal */}
+          {aboutOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+              onClick={e => { if (e.target === e.currentTarget) setAboutOpen(false); }}
+            >
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-lg w-full p-6 flex flex-col gap-4 fade-in-up">
+                <div className="flex items-start justify-between">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">About Review Generator</h2>
+                  <button
+                    onClick={() => setAboutOpen(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-4"
+                  >✕</button>
+                </div>
+
+                <div className="flex flex-col gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="flex gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                    <span className="text-2xl shrink-0">🤖</span>
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">How it works</p>
+                      <p>This tool uses OpenAI's language models to generate sample product reviews based on the parameters you configure — product name, category, tone, length, and sentiment. The AI constructs a realistic-sounding review in seconds.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                    <span className="text-2xl shrink-0">🎓</span>
+                    <div>
+                      <p className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Intended use</p>
+                      <p>For educational and research purposes — studying how AI generates persuasive text, or exploring how review tone and sentiment affect perception.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/60 rounded-xl p-4 flex gap-3">
+                  <span className="text-xl shrink-0 mt-0.5">⚠️</span>
+                  <div className="text-sm">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300 mb-1">FTC Disclaimer — Fake Review Ban</p>
+                    <p className="text-amber-700 dark:text-amber-400">
+                      The FTC prohibits posting fake or AI-generated reviews to deceive consumers. Publishing AI-generated reviews as genuine feedback is illegal and may result in penalties up to <strong>$51,744 per violation</strong>.
+                    </p>
+                    <p className="text-amber-700 dark:text-amber-400 mt-2">Reviews from this tool should <strong>not</strong> be posted as real consumer reviews.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setAboutOpen(false)}
+                  className="self-end px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors shadow-sm"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Header */}
+          <header className="header-gradient shadow-lg">
+            <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-white">✨ Review Generator</h1>
+                <p className="text-sm text-indigo-200 mt-0.5">AI-powered product review generation</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDark(d => !d)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors text-base"
+                  title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  {dark ? '☀️' : '🌙'}
+                </button>
+                <button
+                  onClick={() => setAboutOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors"
+                >
+                  ℹ️ About
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Main */}
+          <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+
+              {/* ── Left: Form ── */}
+              <div ref={formRef} className="w-full md:w-1/2 flex flex-col gap-5">
+
+                {/* API Key */}
+                <Card>
+                  <CardTitle icon="🔑">OpenAI API Key</CardTitle>
+                  <div>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={e => { setApiKey(e.target.value); setErrors(err => ({...err, apiKey: ''})); }}
+                      placeholder="sk-..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm transition-shadow placeholder-gray-400 dark:placeholder-gray-500 font-mono"
+                    />
+                    {errors.apiKey && (
+                      <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><span>⚠</span> {errors.apiKey}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1.5">Stored in your browser only — never sent anywhere except OpenAI.</p>
+                  </div>
+                </Card>
+
+                {/* Product Details */}
+                <Card>
+                  <CardTitle icon="📦">Product Details</CardTitle>
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <Label htmlFor="productName">Product Name</Label>
+                      <Input
+                        id="productName" value={productName}
+                        onChange={v => { setProductName(v); setErrors(e => ({...e, productName: ''})); }}
+                        placeholder='e.g. "Sony WH-1000XM5 Headphones"'
+                      />
+                      {errors.productName && (
+                        <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                          <span>⚠</span> {errors.productName}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="category">Product Category</Label>
+                      {useCustomCat ? (
+                        <div className="flex gap-2">
+                          <Input
+                            id="category" value={categoryCustom} onChange={setCategoryCustom}
+                            placeholder="Enter custom category..." className="flex-1"
+                          />
+                          <button
+                            onClick={() => { setUseCustomCat(false); setCategoryCustom(''); }}
+                            className="text-xs text-gray-400 hover:text-red-500 px-2 shrink-0 transition-colors"
+                          >✕ Clear</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select id="category" value={category} onChange={setCategory} className="flex-1">
+                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </Select>
+                          <button
+                            onClick={() => setUseCustomCat(true)}
+                            className="text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium px-2 shrink-0 transition-colors"
+                          >+ Custom</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Review Configuration */}
+                <Card>
+                  <CardTitle icon="⚙️">Review Configuration</CardTitle>
+                  <div className="flex flex-col gap-5">
+
+                    {/* Length */}
+                    <div>
+                      <Label>Review Length</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {LENGTHS.map(l => (
+                          <button
+                            key={l.id}
+                            onClick={() => setLength(l.id)}
+                            className={[
+                              'py-2.5 px-2 rounded-xl text-sm font-medium transition-all border',
+                              length === l.id
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 dark:shadow-indigo-900/40'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-600',
+                            ].join(' ')}
+                          >
+                            <div>{l.label}</div>
+                            <div className={`text-xs mt-0.5 ${length === l.id ? 'text-indigo-200' : 'text-gray-400'}`}>{l.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Style chips */}
+                    <div>
+                      <Label>Writing Style</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {STYLES.map(s => (
+                          <button key={s} onClick={() => setStyle(s)} className={chipBtn(style === s)}>{s}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Model */}
+                    <div>
+                      <Label htmlFor="model">AI Model</Label>
+                      <Select id="model" value={model} onChange={setModel}>
+                        {MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </Select>
+                    </div>
+
+                    {/* Sentiment slider */}
+                    <div>
+                      <Label htmlFor="sentiment">Sentiment</Label>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-lg">😤</span>
+                        <input
+                          id="sentiment" type="range" min="1" max="10" value={sentiment}
+                          onChange={e => setSentiment(Number(e.target.value))}
+                          className="flex-1 cursor-pointer"
+                        />
+                        <span className="text-lg">😍</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-400 mb-2">
+                        <span>Negative</span><span>Positive</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 ${sentimentColor(sentiment)}`}>
+                          {sentimentLabel(sentiment)} · {sentiment}/10
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Keywords */}
+                    <div>
+                      <Label htmlFor="keywords">
+                        Additional Notes or Keywords{' '}
+                        <span className="font-normal text-gray-400">(Optional)</span>
+                      </Label>
+                      <textarea
+                        id="keywords" value={keywords} onChange={e => setKeywords(e.target.value)} rows={3}
+                        placeholder="e.g. mention battery life, compare to previous model, include a complaint about the packaging..."
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm resize-none transition-shadow placeholder-gray-400 dark:placeholder-gray-500"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">The AI will weave these details naturally into the review.</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <ErrorMsg msg={apiError} />
+
+                {/* Generate Button */}
+                <button
+                  onClick={generate} disabled={loading}
+                  className="w-full py-3.5 rounded-2xl btn-generate disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none text-white font-bold text-base shadow-lg flex items-center justify-center gap-2"
+                >
+                  {loading
+                    ? <>
+                        <svg className="spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31" strokeDashoffset="10"/>
+                        </svg>
+                        Generating your review…
+                      </>
+                    : <>✨ Generate Review</>
+                  }
+                </button>
+              </div>
+
+              {/* ── Right: Output ── */}
+              <div className="w-full md:w-1/2">
+                {review ? (
+                  <div ref={outputRef} key={reviewKey} className="fade-in-up">
+                    <Card className="ring-1 ring-indigo-100 dark:ring-indigo-900/30">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-400 shadow-sm shadow-green-300"></span>
+                            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Generated Review</h2>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <StarDisplay value={stars} />
+                            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{stars.toFixed(1)}</span>
+                            <span className="text-xs text-gray-400">/ 5.0</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-medium text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2.5 py-1 rounded-full shrink-0">
+                          {effectiveCategory}
+                        </span>
+                      </div>
+
+                      {/* Product name */}
+                      <p className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mb-4">{productName}</p>
+
+                      <div className="border-t border-gray-100 dark:border-gray-700/60 mb-4" />
+
+                      {/* Review text */}
+                      <div className="review-text text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                        {review}
+                      </div>
+
+                      {/* Meta */}
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+                        <span className="text-xs text-gray-400">{wordCount(review)} words</span>
+                        <span className="text-xs text-gray-400 capitalize">{style} · {length}</span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <button
+                          onClick={handleCopy}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition-all ${
+                            copied
+                              ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400'
+                              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-indigo-300 dark:hover:border-indigo-600'
+                          }`}
+                        >
+                          {copied ? '✅ Copied!' : '📋 Copy'}
+                        </button>
+                        <button
+                          onClick={generate} disabled={loading}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all disabled:opacity-50"
+                        >
+                          🔄 Regenerate
+                        </button>
+                        <button
+                          onClick={() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all"
+                        >
+                          ✏️ Edit &amp; Retry
+                        </button>
+                      </div>
+                    </Card>
+                  </div>
+                ) : (
+                  <div ref={outputRef} className="hidden md:flex flex-col items-center justify-center h-full min-h-72 rounded-2xl border-2 border-dashed border-indigo-100 dark:border-indigo-900/30 text-gray-400 dark:text-gray-600 text-sm gap-4 p-8 bg-white/50 dark:bg-gray-900/40">
+                    <span className="text-5xl opacity-40">📝</span>
+                    <div className="text-center">
+                      <p className="font-medium text-gray-500 dark:text-gray-500">Your review will appear here</p>
+                      <p className="text-xs mt-1 text-gray-400">Fill in the form and hit Generate</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </main>
+
+          <footer className="text-center text-xs text-gray-400 dark:text-gray-600 py-5 border-t border-gray-100 dark:border-gray-800/60">
+            Review Generator · Powered by OpenAI
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
