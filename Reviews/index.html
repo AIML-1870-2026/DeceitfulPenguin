@@ -173,6 +173,38 @@
       });
     }
 
+    function parseKeyFile(content, filename) {
+      const lower = filename.toLowerCase();
+      let openai = null;
+      if (lower.endsWith('.env') || lower === '.env') {
+        for (const line of content.split('\n')) {
+          const m = line.match(/^\s*([\w_]+)\s*=\s*(.+)\s*$/);
+          if (!m) continue;
+          const k = m[1].toLowerCase();
+          const v = m[2].trim().replace(/^["']|["']$/g, '');
+          if (k.includes('openai')) openai = v;
+        }
+      } else if (lower.endsWith('.csv')) {
+        const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+        let start = 0;
+        if (lines.length > 0) {
+          const first = lines[0].toLowerCase();
+          if (first.includes('provider') || (first.includes('key') && !first.startsWith('sk-'))) start = 1;
+        }
+        for (let i = start; i < lines.length; i++) {
+          const parts = lines[i].split(',').map(p => p.trim());
+          if (parts.length < 2) continue;
+          if (parts[0].toLowerCase().includes('openai')) openai = parts[1];
+        }
+      }
+      return openai;
+    }
+
+    function maskKey(key) {
+      if (!key) return '';
+      return key.slice(0, Math.min(7, key.length)) + '••••••••' + key.slice(-4);
+    }
+
     async function callOpenAI({ key, model, systemPrompt, userPrompt }) {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -269,13 +301,94 @@
       );
     }
 
-    // API key is entered by the user and stored in localStorage — never hardcoded.
+    function KeyPanel({ apiKey, onLoad, onClear, collapsed, onToggle, error, onError, onManualChange }) {
+      const [dragging, setDragging]       = useState(false);
+      const [clearConfirm, setClearConfirm] = useState(false);
+      const fileRef = useRef();
+
+      function handleFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const key = parseKeyFile(e.target.result, file.name);
+          if (!key) {
+            onError('No OpenAI key found. Expected OPENAI_API_KEY in .env or a row starting with "openai" in .csv.');
+            return;
+          }
+          onError('');
+          onLoad(key);
+        };
+        reader.readAsText(file);
+      }
+
+      function onDrop(e) {
+        e.preventDefault(); setDragging(false);
+        handleFile(e.dataTransfer.files[0]);
+      }
+
+      if (collapsed && apiKey) {
+        return (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap">
+            <span className="text-green-700 dark:text-green-400 font-medium text-sm">🔑 Key loaded:</span>
+            <span className="font-mono text-green-800 dark:text-green-300 text-sm">{maskKey(apiKey)}</span>
+            <div className="flex gap-2 ml-auto">
+              <button onClick={onToggle} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">Change</button>
+              {clearConfirm
+                ? <>
+                    <span className="text-xs text-red-600 dark:text-red-400 self-center">Clear key?</span>
+                    <button onClick={() => { onClear(); setClearConfirm(false); }} className="text-xs px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors">Yes</button>
+                    <button onClick={() => setClearConfirm(false)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors">Cancel</button>
+                  </>
+                : <button onClick={() => setClearConfirm(true)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-red-300 dark:hover:border-red-700 transition-colors">Clear</button>
+              }
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <Card>
+          <CardTitle icon="🔑">OpenAI API Key</CardTitle>
+          <div className="flex flex-col gap-3">
+            <div
+              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${dragging ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-600'}`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              onClick={() => fileRef.current.click()}
+            >
+              <div className="text-2xl mb-1">📂</div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop your key file here, or click to browse</p>
+              <p className="text-xs text-gray-400 mt-1">Accepts <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">.env</code> or <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">.csv</code> files</p>
+              <input ref={fileRef} type="file" accept=".env,.csv,text/*" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+            </div>
+            {error && <p className="text-xs text-red-500 flex items-center gap-1"><span>⚠</span> {error}</p>}
+            <div>
+              <p className="text-xs text-gray-400 mb-1.5">Or paste your key manually:</p>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => { onManualChange(e.target.value); onError(''); }}
+                placeholder="sk-..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm transition-shadow placeholder-gray-400 dark:placeholder-gray-500 font-mono"
+              />
+            </div>
+            <p className="text-xs text-gray-400">Stored in your browser only — never sent anywhere except OpenAI.</p>
+            {apiKey && (
+              <button onClick={onToggle} className="self-start text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors">Collapse ↑</button>
+            )}
+          </div>
+        </Card>
+      );
+    }
 
     // ── Main App ──────────────────────────────────────────────────────────────
     function App() {
       const [dark, setDark] = useDarkMode();
 
-      const [apiKey, setApiKey] = useState(() => localStorage.getItem('rg-apikey') || '');
+      const [apiKey, setApiKey]           = useState(() => localStorage.getItem('rg-apikey') || '');
+      const [keyCollapsed, setKeyCollapsed] = useState(() => !!localStorage.getItem('rg-apikey'));
+      const [keyFileError, setKeyFileError] = useState('');
       useEffect(() => { localStorage.setItem('rg-apikey', apiKey); }, [apiKey]);
 
       const [model, setModel]                   = useState('gpt-4o');
@@ -430,22 +543,16 @@
               <div ref={formRef} className="w-full md:w-1/2 flex flex-col gap-5">
 
                 {/* API Key */}
-                <Card>
-                  <CardTitle icon="🔑">OpenAI API Key</CardTitle>
-                  <div>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={e => { setApiKey(e.target.value); setErrors(err => ({...err, apiKey: ''})); }}
-                      placeholder="sk-..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm transition-shadow placeholder-gray-400 dark:placeholder-gray-500 font-mono"
-                    />
-                    {errors.apiKey && (
-                      <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><span>⚠</span> {errors.apiKey}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-1.5">Stored in your browser only — never sent anywhere except OpenAI.</p>
-                  </div>
-                </Card>
+                <KeyPanel
+                  apiKey={apiKey}
+                  onLoad={key => { setApiKey(key); setKeyCollapsed(true); setErrors(e => ({...e, apiKey: ''})); setKeyFileError(''); }}
+                  onClear={() => { setApiKey(''); setKeyCollapsed(false); }}
+                  collapsed={keyCollapsed}
+                  onToggle={() => setKeyCollapsed(c => !c)}
+                  error={keyFileError || errors.apiKey || ''}
+                  onError={setKeyFileError}
+                  onManualChange={v => { setApiKey(v); setErrors(e => ({...e, apiKey: ''})); }}
+                />
 
                 {/* Product Details */}
                 <Card>
