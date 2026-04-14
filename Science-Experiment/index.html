@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Science Experiment Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
+
+    /* Animated gradient page background */
+    html, body { min-height: 100vh; margin: 0; }
+    body {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 30%, #f0f9ff 60%, #f5f3ff 100%);
+      background-attachment: fixed;
+    }
+    html.dark body {
+      background: linear-gradient(135deg, #020f0a 0%, #071a14 30%, #060f1a 60%, #0d0a1a 100%);
+      background-attachment: fixed;
+    }
+
+    /* Noise texture */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      opacity: .025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px;
+    }
+
+    /* Left panel glass */
+    .panel-left {
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    html.dark .panel-left {
+      background: rgba(12,18,28,0.85);
+    }
+
+    /* Right panel glass */
+    .panel-right {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    html.dark .panel-right {
+      background: rgba(12,18,28,0.55);
+    }
+
+    /* Drop zone */
+    .drop-zone.drag-over { border-color: #10b981 !important; background: rgba(16,185,129,.07); }
+
+    /* Animations */
+    @keyframes float   { 0%,100%{transform:translateY(0) rotate(-2deg)} 50%{transform:translateY(-12px) rotate(2deg)} }
+    @keyframes float2  { 0%,100%{transform:translateY(0) rotate(3deg)}  50%{transform:translateY(-8px) rotate(-1deg)} }
+    @keyframes float3  { 0%,100%{transform:translateY(0)}               50%{transform:translateY(-6px)} }
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes popIn   { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+    @keyframes shimmer { 0%{background-position:-300% center} 100%{background-position:300% center} }
+    @keyframes bounce3 { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-7px)} }
+    @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.4} }
+    @keyframes spin    { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+    .f1  { animation: float  5s ease-in-out infinite; }
+    .f2  { animation: float2 6s ease-in-out infinite; animation-delay:.8s; }
+    .f3  { animation: float3 4.5s ease-in-out infinite; animation-delay:1.5s; }
+
+    .fade-up { animation: fadeUp .45s cubic-bezier(.22,.68,0,1.15) both; }
+    .pop-in  { animation: popIn  .35s cubic-bezier(.34,1.56,.64,1) both; }
+
+    .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:currentColor;
+           animation:bounce3 1.2s ease-in-out infinite; }
+    .dot:nth-child(2){animation-delay:.15s}
+    .dot:nth-child(3){animation-delay:.30s}
+
+    .shimmer-btn {
+      background: linear-gradient(100deg, #059669 0%, #0d9488 40%, #7c3aed 70%, #059669 100%);
+      background-size: 300% auto;
+      transition: background-position .6s, box-shadow .2s, transform .1s;
+    }
+    .shimmer-btn:hover:not(:disabled) {
+      background-position: right center;
+      box-shadow: 0 6px 28px rgba(16,185,129,.4);
+      transform: translateY(-1px);
+    }
+    .shimmer-btn:active:not(:disabled) { transform:translateY(0); }
+    .shimmer-btn:disabled { opacity:.45; cursor:not-allowed; }
+
+    /* Skeleton pulse */
+    .skel { background: linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);
+            background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:8px; }
+    html.dark .skel { background: linear-gradient(90deg,#1f2937 25%,#374151 50%,#1f2937 75%);
+                       background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite; }
+
+    /* Steps connecting line */
+    .step-line { position:relative; }
+    .step-line:not(:last-child)::after {
+      content:''; position:absolute; left:11px; top:28px; width:2px; height:calc(100% + 4px);
+      background: linear-gradient(to bottom,#10b981,transparent);
+      opacity:.25;
+    }
+
+    /* Section stagger */
+    .s1{animation:fadeUp .35s .05s both} .s2{animation:fadeUp .35s .12s both}
+    .s3{animation:fadeUp .35s .19s both} .s4{animation:fadeUp .35s .26s both}
+    .s5{animation:fadeUp .35s .33s both}
+
+    /* Print */
+    @media print {
+      .no-print{display:none!important}
+      body{background:white!important}
+      body::after{display:none}
+      .panel-left,.panel-right{background:white!important;backdrop-filter:none!important}
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-thumb{background:#d1fae5;border-radius:3px}
+    html.dark ::-webkit-scrollbar-thumb{background:#134e4a}
+
+    select,textarea{outline:none}
+    textarea:focus{box-shadow:0 0 0 2px rgba(16,185,129,.35)}
+    .ring-focus:focus{box-shadow:0 0 0 2px rgba(16,185,129,.4)}
+  </style>
+</head>
+<body class="text-gray-900 dark:text-gray-100 transition-colors duration-300">
+<div id="root" class="relative z-10"></div>
+
+<script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const MODELS = [
+  { id:'gpt-4o',        label:'GPT-4o',       sub:'Best quality',  color:'violet', inputPer1M:2.50,  outputPer1M:10.0 },
+  { id:'gpt-4o-mini',   label:'GPT-4o mini',  sub:'Best value',    color:'emerald',inputPer1M:0.15,  outputPer1M:0.60 },
+  { id:'gpt-4-turbo',   label:'GPT-4 Turbo',  sub:'High accuracy', color:'blue',   inputPer1M:10.00, outputPer1M:30.0 },
+  { id:'gpt-3.5-turbo', label:'GPT-3.5',      sub:'Fastest',       color:'sky',    inputPer1M:0.50,  outputPer1M:1.50 },
+];
+
+const GRADE_LEVELS = [
+  { value:'K-2',     label:'K – 2nd',    full:'Kindergarten – 2nd Grade', emoji:'🌱' },
+  { value:'3-5',     label:'3rd – 5th',  full:'3rd – 5th Grade',          emoji:'📚' },
+  { value:'6-8',     label:'6th – 8th',  full:'6th – 8th Grade',          emoji:'🔭' },
+  { value:'9-10',    label:'9th – 10th', full:'9th – 10th Grade',         emoji:'⚗️' },
+  { value:'11-12',   label:'11th – 12th',full:'11th – 12th Grade',        emoji:'🧬' },
+  { value:'college', label:'College',    full:'College / University',     emoji:'🎓' },
+  { value:'adult',   label:'Adult',      full:'Adult / Hobbyist',         emoji:'🔬' },
+];
+
+const COMMON_SUPPLIES = [
+  {
+    label: '🍳 Kitchen', items: [
+      'baking soda','vinegar','salt','sugar','flour','dish soap','food coloring',
+      'corn starch','lemon juice','vegetable oil','water','milk','egg',
+      'coffee filter','paper towel','plastic bag','toothpick','straw',
+    ],
+  },
+  {
+    label: '🎨 Craft', items: [
+      'balloon','scissors','tape','rubber band','string','paper clip',
+      'aluminum foil','cardboard','marker','construction paper','pipe cleaner',
+      'popsicle stick','clay','glue','sponge','cotton ball','index card',
+    ],
+  },
+  {
+    label: '🔋 Electronics', items: [
+      'AA battery','AAA battery','LED bulb','copper wire','electrical tape',
+      'paper clip','aluminum foil','compass','iron nail','steel wool',
+    ],
+  },
+  {
+    label: '🧲 Physics', items: [
+      'magnet','ruler','measuring tape','stopwatch','rubber ball','marble',
+      'ping pong ball','string','plastic bottle','funnel','measuring cup',
+      'scale','wooden block','sandpaper',
+    ],
+  },
+  {
+    label: '🌿 Nature', items: [
+      'soil','sand','pebbles','leaves','seeds','grass','potting mix',
+      'flower petals','stick','bark','ice cubes',
+    ],
+  },
+];
+
+const BLOCKED = [
+  'bleach','chlorine','ammonia','sodium hydroxide','lye','hydrogen peroxide >3%',
+  'gasoline','alcohol lamp','bunsen burner','thermite','explosive','flammable',
+  'toxic','poison','mercury','lead','asbestos','cyanide',
+];
+
+const SYS = `You are a science educator assistant. Your sole purpose is to generate safe, educational, age-appropriate science experiments.
+
+STRICT RULES:
+1. No fire/combustion except supervised 11-12/college labs.
+2. No toxic, corrosive, or hazardous chemicals.
+3. No experiments producing toxic gases or fumes.
+4. No electricity above AA/AAA battery voltage.
+5. No harm to animals.
+6. If supplies suggest danger, provide a safe alternative instead.
+7. If no safe experiment is possible, say so and suggest 2–3 additions.
+
+Always err on caution. Respond ONLY with valid JSON, no fences:
+{"title":"string","objective":"string","materials":["string"],"steps":["string"],"expectedOutcome":"string","safetyNotes":"string"}`;
+
+// ── UTILS ────────────────────────────────────────────────────────────────────
+function parseKeyFile(content, filename) {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith('.env') || lower === '.env') {
+    for (const line of content.split('\n')) {
+      const m = line.match(/^\s*[\w_]*OPENAI[\w_]*\s*=\s*(.+)\s*$/i);
+      if (m) { const v = m[1].trim().replace(/^["']|["']$/g,''); if (/^sk-[A-Za-z0-9_-]{20,}/.test(v)) return v; }
+    }
+    for (const line of content.split('\n')) {
+      const m = line.match(/=\s*(sk-[A-Za-z0-9_-]{20,})/);
+      if (m) return m[1].trim();
+    }
+  } else if (lower.endsWith('.csv')) {
+    for (const line of content.split('\n'))
+      for (const cell of line.split(',')) {
+        const v = cell.trim().replace(/^["']|["']$/g,'');
+        if (/^sk-[A-Za-z0-9_-]{20,}/.test(v)) return v;
+      }
+  }
+  return null;
+}
+
+const validateKey = k => /^sk-[A-Za-z0-9_-]{20,}/.test(k);
+const maskKey     = k => k ? k.slice(0,7)+'••••••••'+k.slice(-4) : '';
+
+function parseSupplies(text) {
+  return [...new Set(text.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean))];
+}
+
+function scanBlocked(exp) {
+  const hay = [...(exp.materials||[]),...(exp.steps||[]),exp.safetyNotes||''].join(' ').toLowerCase();
+  return BLOCKED.filter(kw=>hay.includes(kw));
+}
+
+function estimateCost(usage, modelId) {
+  const m = MODELS.find(x=>x.id===modelId);
+  if (!m||!usage) return null;
+  const t = (usage.prompt_tokens/1e6)*m.inputPer1M + (usage.completion_tokens/1e6)*m.outputPer1M;
+  return t < .001 ? '< $0.001' : '$'+t.toFixed(4);
+}
+
+function clip(text) {
+  navigator.clipboard?.writeText(text).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value=text; ta.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  });
+}
+
+function toPlainText(exp, gradeLabel) {
+  return [`🔬 ${exp.title}`,`Grade: ${gradeLabel}`,'',
+    'OBJECTIVE',exp.objective,'',
+    'MATERIALS',...(exp.materials||[]).map(m=>`• ${m}`),'',
+    'STEPS',...(exp.steps||[]).map((s,i)=>`${i+1}. ${s}`),'',
+    'EXPECTED OUTCOME',exp.expectedOutcome,'',
+    'SAFETY NOTES',exp.safetyNotes,
+  ].join('\n');
+}
+
+async function callOpenAI({ key, model, gradeLevel, supplies }) {
+  const gl = GRADE_LEVELS.find(g=>g.value===gradeLevel)?.full || gradeLevel;
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+    body: JSON.stringify({
+      model, temperature:.8, max_tokens:1200,
+      response_format:{type:'json_object'},
+      messages:[
+        {role:'system',content:SYS},
+        {role:'user',content:`Grade level: ${gl}\nSupplies: ${supplies.join(', ')}`},
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    if (res.status===401) throw new Error('AUTH_ERROR');
+    if (res.status===429) throw new Error('RATE_LIMIT');
+    throw new Error(e.error?.message||`HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return { text:data.choices[0].message.content, usage:data.usage };
+}
+
+// ── SMALL COMPONENTS ─────────────────────────────────────────────────────────
+
+function Dots() {
+  return <span className="inline-flex items-end gap-1 h-4">
+    <span className="dot"/><span className="dot"/><span className="dot"/>
+  </span>;
+}
+
+function StepDot({ n, done, active }) {
+  return (
+    <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300
+      ${done   ? 'bg-emerald-500 text-white shadow shadow-emerald-400/40'
+      : active ? 'bg-white dark:bg-gray-800 border-2 border-emerald-400 text-emerald-600 dark:text-emerald-400'
+      :          'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'}`}>
+      {done ? '✓' : n}
+    </div>
+  );
+}
+
+function Chip({ children, color='emerald' }) {
+  const c = {
+    emerald:'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
+    violet: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800',
+    amber:  'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
+    sky:    'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-800',
+    orange: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
+  };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium border ${c[color]}`}>
+      {children}
+    </span>
+  );
+}
+
+function SecBtn({ children, onClick, icon }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-emerald-400 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 transition-all focus:outline-none ring-focus">
+      {icon && <span>{icon}</span>}{children}
+    </button>
+  );
+}
+
+// ── DROP ZONE ─────────────────────────────────────────────────────────────────
+function DropZone({ onKey, keyStatus, keyError, apiKey }) {
+  const [drag, setDrag] = useState(false);
+  const ref = useRef();
+
+  const process = useCallback((file) => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = e => onKey(parseKeyFile(e.target.result, file.name), file.name);
+    r.readAsText(file);
+  }, [onKey]);
+
+  const onDrop      = e => { e.preventDefault(); setDrag(false); process(e.dataTransfer.files[0]); };
+  const onDragOver  = e => { e.preventDefault(); setDrag(true); };
+  const onDragLeave = ()  => setDrag(false);
+
+  const ok  = keyStatus === 'ok';
+  const err = keyStatus === 'error';
+
+  if (ok) return (
+    <div className="pop-in flex items-center gap-3 px-4 py-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-300 dark:border-emerald-700">
+      <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white text-lg shrink-0 shadow shadow-emerald-400/40">✓</div>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Key loaded</p>
+        <p className="text-xs text-emerald-600/60 dark:text-emerald-500/60 font-mono truncate">{maskKey(apiKey)}</p>
+      </div>
+      <button type="button" onClick={() => ref.current?.click()}
+        className="ml-auto shrink-0 text-xs text-emerald-600 dark:text-emerald-400 hover:underline focus:outline-none">
+        Replace
+      </button>
+      <input ref={ref} type="file" accept=".env,.csv" className="hidden" onChange={e=>process(e.target.files[0])} />
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      <div role="button" tabIndex={0} aria-label="Upload API key file"
+        className={`drop-zone border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all duration-200
+          ${drag ? 'drag-over scale-[1.01]' : err
+            ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/10'
+            : 'border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-600'}`}
+        onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+        onClick={() => ref.current?.click()}
+        onKeyDown={e => e.key==='Enter' && ref.current?.click()}>
+        <input ref={ref} type="file" accept=".env,.csv" className="hidden" onChange={e=>process(e.target.files[0])} />
+        <div className="text-2xl mb-1">{drag ? '📂' : '🗝️'}</div>
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Drop your <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">.env</span> or <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">.csv</span> here</p>
+        <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-0.5 hover:underline">or click to browse</p>
+      </div>
+      {err && (
+        <p className="fade-up text-xs text-red-600 dark:text-red-400 px-1">{keyError}</p>
+      )}
+      <p className="text-[11px] text-gray-400 dark:text-gray-600 flex items-center gap-1 px-1">
+        <span>🔒</span> Key stays in your browser — never sent anywhere except OpenAI.
+      </p>
+    </div>
+  );
+}
+
+// ── MODEL PICKER ──────────────────────────────────────────────────────────────
+function ModelPicker({ value, onChange, disabled }) {
+  const colors = {
+    violet: { ring:'border-violet-400 dark:border-violet-500', bg:'bg-violet-50 dark:bg-violet-900/20', dot:'bg-violet-400' },
+    emerald:{ ring:'border-emerald-400 dark:border-emerald-500',bg:'bg-emerald-50 dark:bg-emerald-900/20',dot:'bg-emerald-400' },
+    blue:   { ring:'border-blue-400 dark:border-blue-500',      bg:'bg-blue-50 dark:bg-blue-900/20',     dot:'bg-blue-400' },
+    sky:    { ring:'border-sky-400 dark:border-sky-500',        bg:'bg-sky-50 dark:bg-sky-900/20',       dot:'bg-sky-400' },
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {MODELS.map(m => {
+        const sel = value === m.id;
+        const c   = colors[m.color];
+        return (
+          <button key={m.id} type="button" disabled={disabled} onClick={() => onChange(m.id)}
+            className={`relative text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-150 focus:outline-none ring-focus
+              disabled:opacity-35 disabled:cursor-not-allowed
+              ${sel ? `${c.ring} ${c.bg}` : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white/60 dark:bg-gray-800/30'}`}>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={`w-2 h-2 rounded-full ${sel ? c.dot : 'bg-gray-300 dark:bg-gray-600'} transition-colors`} />
+              <span className={`text-xs font-semibold ${sel ? 'text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>{m.label}</span>
+            </div>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 pl-3.5">{m.sub}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── GRADE PICKER ──────────────────────────────────────────────────────────────
+function GradePicker({ value, onChange, disabled }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {GRADE_LEVELS.map(g => (
+        <button key={g.value} type="button" disabled={disabled} onClick={() => onChange(g.value)}
+          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all
+            disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none ring-focus
+            ${value===g.value
+              ? 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/25 dark:text-emerald-300 dark:border-emerald-500'
+              : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-500 hover:border-emerald-300 dark:hover:border-emerald-700'}`}>
+          <span>{g.emoji}</span>{g.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── QUICK SUPPLIES ────────────────────────────────────────────────────────────
+function QuickSupplies({ supplies, onAdd, onRemove, disabled }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [open, setOpen] = useState(false);
+  const current = parseSupplies(supplies);
+  const cat = COMMON_SUPPLIES[activeTab];
+
+  return (
+    <div className={`rounded-2xl border-2 transition-colors ${open ? 'border-emerald-200 dark:border-emerald-800' : 'border-gray-200 dark:border-gray-700'}`}>
+      {/* Toggle header */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-emerald-700 dark:hover:text-emerald-400 disabled:opacity-35 disabled:cursor-not-allowed transition-colors focus:outline-none"
+      >
+        <span className="flex items-center gap-1.5">
+          <span>⚡</span> Quick Add Supplies
+          {current.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+              {current.length}
+            </span>
+          )}
+        </span>
+        <span className={`transition-transform duration-200 text-gray-400 ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100 dark:border-gray-700/60 px-3.5 pb-3.5 pt-3 space-y-3">
+          {/* Category tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {COMMON_SUPPLIES.map((c, i) => (
+              <button
+                key={i} type="button"
+                onClick={() => setActiveTab(i)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all focus:outline-none
+                  ${activeTab === i
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-400/30'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Supply chips for active category */}
+          <div className="flex flex-wrap gap-1.5">
+            {cat.items.map((item, i) => {
+              const added = current.map(s=>s.toLowerCase()).includes(item.toLowerCase());
+              return (
+                <button
+                  key={i} type="button"
+                  onClick={() => added ? onRemove(item) : onAdd(item)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium border transition-all focus:outline-none ring-focus
+                    ${added
+                      ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-400/25'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400'}`}
+                >
+                  {added ? <span className="text-[10px]">✓</span> : <span className="text-[10px] opacity-50">+</span>}
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[10px] text-gray-400 dark:text-gray-600">
+            Click to add · click again to remove
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SKELETON ─────────────────────────────────────────────────────────────────
+function Skeleton() {
+  return (
+    <div className="space-y-5 p-7 panel-right rounded-3xl border border-white/60 dark:border-gray-700/40">
+      <div className="skel h-8 w-2/3" />
+      <div className="skel h-4 w-1/3" />
+      <div className="space-y-2 pt-2">
+        <div className="skel h-3 w-full" />
+        <div className="skel h-3 w-5/6" />
+        <div className="skel h-3 w-4/5" />
+      </div>
+      <div className="flex gap-2 flex-wrap pt-1">
+        {[60,80,70,90,65].map((w,i)=><div key={i} className="skel h-7 rounded-xl" style={{width:w+'px'}}/>)}
+      </div>
+      <div className="space-y-3 pt-1">
+        {[1,2,3,4].map(i=>(
+          <div key={i} className="flex gap-3 items-start">
+            <div className="skel w-6 h-6 rounded-full shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <div className="skel h-3 w-full" />
+              <div className="skel h-3 w-4/5" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── EMPTY STATE ───────────────────────────────────────────────────────────────
+function EmptyState({ canSubmit }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-16 px-8 space-y-8">
+      {/* Floating icons */}
+      <div className="relative w-36 h-36">
+        <span className="f1 absolute top-0 left-4 text-5xl select-none">⚗️</span>
+        <span className="f2 absolute top-8 right-0 text-4xl select-none">🧬</span>
+        <span className="f3 absolute bottom-0 left-0 text-3xl select-none">🔭</span>
+        <span className="f1 absolute bottom-2 right-6 text-3xl select-none" style={{animationDelay:'2s'}}>🧪</span>
+        <span className="f2 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl select-none">🔬</span>
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Ready to experiment?</h2>
+        <p className="text-gray-500 dark:text-gray-500 text-sm max-w-xs leading-relaxed">
+          Fill in the form and your custom science experiment will appear right here.
+        </p>
+      </div>
+
+      {/* Preview of what's coming */}
+      <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
+        {[
+          { icon:'🎯', label:'Objective' },
+          { icon:'🧪', label:'Materials' },
+          { icon:'📋', label:'Steps' },
+          { icon:'💡', label:'Outcome' },
+          { icon:'⚠️', label:'Safety' },
+          { icon:'📋', label:'Copy & Print' },
+        ].map((c,i)=>(
+          <div key={i} className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/60 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700/60">
+            <span className="text-xl">{c.icon}</span>
+            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-500">{c.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {!canSubmit && (
+        <p className="text-xs text-gray-400 dark:text-gray-600 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 animate-pulse" />
+          Complete the form on the left to get started
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── EXPERIMENT CARD ───────────────────────────────────────────────────────────
+function ExperimentCard({ exp, gradeLevel, model, usage, onCopy, onPrint, onRegen }) {
+  const g = GRADE_LEVELS.find(x=>x.value===gradeLevel) || {};
+  const cost = estimateCost(usage, model);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => { onCopy(); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+
+  return (
+    <div className="fade-up space-y-4">
+      {/* Card */}
+      <div className="print-card rounded-3xl overflow-hidden border border-white/60 dark:border-gray-700/40 shadow-2xl shadow-emerald-500/10">
+
+        {/* Header */}
+        <div className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 px-8 py-7 overflow-hidden">
+          <div className="absolute inset-0 opacity-20"
+            style={{backgroundImage:'radial-gradient(circle at 80% 20%,white 0%,transparent 60%)'}}/>
+          <div className="absolute -bottom-8 -right-8 w-36 h-36 rounded-full bg-white/10"/>
+          <div className="relative">
+            <div className="flex items-start gap-4">
+              <span className="text-5xl">{g.emoji||'🔬'}</span>
+              <div>
+                <p className="text-emerald-100 text-xs font-semibold uppercase tracking-widest mb-1">Experiment</p>
+                <h2 className="text-2xl font-extrabold text-white leading-tight">{exp.title}</h2>
+                <p className="text-emerald-100/80 text-sm mt-1">{g.full || gradeLevel}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="panel-right px-8 py-7 space-y-0">
+
+          {/* Objective */}
+          <div className="s1 pb-6">
+            <Chip color="violet">🎯 Objective</Chip>
+            <p className="mt-3 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">{exp.objective}</p>
+          </div>
+
+          {/* Materials */}
+          <div className="s2 py-6 border-t border-gray-100 dark:border-gray-700/50">
+            <Chip color="emerald">🧪 Materials Needed</Chip>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(exp.materials||[]).map((m,i)=>(
+                <span key={i} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
+                  <span className="text-emerald-400 text-[10px]">●</span>{m}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Steps */}
+          <div className="s3 py-6 border-t border-gray-100 dark:border-gray-700/50">
+            <Chip color="sky">📋 Steps</Chip>
+            <ol className="mt-4 space-y-4">
+              {(exp.steps||[]).map((s,i)=>(
+                <li key={i} className="step-line flex items-start gap-4">
+                  <span className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white text-xs font-bold flex items-center justify-center shadow-md shadow-emerald-400/30 relative z-10">
+                    {i+1}
+                  </span>
+                  <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed pt-1">{s}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Expected outcome */}
+          <div className="s4 py-6 border-t border-gray-100 dark:border-gray-700/50">
+            <Chip color="amber">💡 Expected Outcome</Chip>
+            <div className="mt-3 p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/40">
+              <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">{exp.expectedOutcome}</p>
+            </div>
+          </div>
+
+          {/* Safety */}
+          {exp.safetyNotes && (
+            <div className="s5 py-6 border-t border-gray-100 dark:border-gray-700/50">
+              <Chip color="orange">⚠️ Safety Notes</Chip>
+              <div className="mt-3 p-4 rounded-2xl bg-orange-50/70 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/40">
+                <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">{exp.safetyNotes}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Actions row */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 px-1">
+        <div className="flex flex-wrap gap-2">
+          <SecBtn onClick={handleCopy} icon={copied?'✅':'📋'}>{copied?'Copied!':'Copy text'}</SecBtn>
+          <SecBtn onClick={onPrint} icon="🖨️">Print / PDF</SecBtn>
+          <button type="button" onClick={onRegen}
+            className="shimmer-btn inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white focus:outline-none ring-focus">
+            🔄 Generate Another
+          </button>
+        </div>
+        {cost && (
+          <span className="text-xs text-gray-400 dark:text-gray-600">💰 Est. {cost}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [dark, setDark]         = useState(()=>window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const [apiKey, setApiKey]     = useState('');
+  const [keyStatus, setKS]      = useState('idle');
+  const [keyError, setKE]       = useState('');
+  const [model, setModel]       = useState('gpt-4o-mini');
+  const [grade, setGrade]       = useState('');
+  const [supplies, setSupplies] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [safety, setSafety]     = useState('');
+  const [exp, setExp]           = useState(null);
+  const [usage, setUsage]       = useState(null);
+
+  useEffect(()=>{ document.documentElement.classList.toggle('dark',dark); }, [dark]);
+
+  const handleKey = useCallback((key, filename) => {
+    if (!key) { setKS('error'); setKE(`No valid OpenAI key found in "${filename}".`); setApiKey(''); return; }
+    if (!validateKey(key)) { setKS('error'); setKE('Key format invalid (expected sk-...).'); setApiKey(''); return; }
+    setApiKey(key); setKS('ok'); setKE('');
+  }, []);
+
+  const supList = parseSupplies(supplies);
+  const steps = [keyStatus==='ok', !!model, !!grade, supList.length>=2];
+
+  const addSupply = (name) => {
+    setSupplies(prev => {
+      const current = parseSupplies(prev);
+      if (current.map(s=>s.toLowerCase()).includes(name.toLowerCase())) return prev;
+      return prev.trim() ? prev.trimEnd().replace(/,\s*$/, '') + ', ' + name : name;
+    });
+  };
+  const removeSupply = (name) => {
+    setSupplies(prev =>
+      parseSupplies(prev).filter(s=>s.toLowerCase()!==name.toLowerCase()).join(', ')
+    );
+  };
+  const canSubmit = steps.every(Boolean) && supplies.length<=1000 && !loading;
+
+  const generate = async (e) => {
+    if (e) e.preventDefault();
+    if (!canSubmit) return;
+    setLoading(true); setError(''); setSafety(''); setExp(null); setUsage(null);
+    try {
+      const { text, usage:u } = await callOpenAI({ key:apiKey, model, gradeLevel:grade, supplies:supList });
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { throw new Error('Bad response format. Try again.'); }
+      const flagged = scanBlocked(parsed);
+      if (flagged.length) {
+        console.warn('[Safety] Blocked. Keywords:', flagged, '\nRaw:', text);
+        setSafety('This experiment was flagged for safety. Try different supplies or a different grade level.');
+        return;
+      }
+      setExp(parsed); setUsage(u);
+    } catch (err) {
+      if (err.message==='AUTH_ERROR')  setError('API key is invalid. Check your file and try again.');
+      else if (err.message==='RATE_LIMIT') setError("OpenAI rate limit hit. Wait a moment and try again.");
+      else setError(err.message || "Something went wrong. Please try again.");
+    } finally { setLoading(false); }
+  };
+
+  const pct = (steps.filter(Boolean).length / steps.length) * 100;
+
+  return (
+    <div className="min-h-screen">
+      {/* ── Top bar ── */}
+      <header className="no-print sticky top-0 z-50 border-b border-white/40 dark:border-gray-800/60 bg-white/60 dark:bg-gray-950/70 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🔬</span>
+            <span className="font-bold text-gray-900 dark:text-white text-sm tracking-tight">Science Experiment Generator</span>
+          </div>
+          <button onClick={()=>setDark(d=>!d)} aria-label="Toggle dark mode"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all">
+            {dark ? '☀️ Light' : '🌙 Dark'}
+          </button>
+        </div>
+        {/* Global progress bar */}
+        <div className="h-0.5 bg-gray-100 dark:bg-gray-800">
+          <div className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-all duration-500"
+            style={{width:`${pct}%`}} />
+        </div>
+      </header>
+
+      {/* ── Two-column layout ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 lg:grid lg:grid-cols-[400px_1fr] lg:gap-8 xl:grid-cols-[440px_1fr]">
+
+        {/* ════ LEFT: Form Panel ════ */}
+        <aside className="no-print lg:sticky lg:top-[60px] lg:self-start lg:max-h-[calc(100vh-80px)] lg:overflow-y-auto space-y-0 pb-8">
+          <form onSubmit={generate}>
+            <div className="panel-left rounded-3xl border border-white/70 dark:border-gray-700/60 shadow-xl shadow-gray-900/10 overflow-hidden">
+
+              {/* Form header */}
+              <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-700/60">
+                <h1 className="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">
+                  Build your experiment
+                </h1>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  {steps.filter(Boolean).length} of {steps.length} steps complete
+                </p>
+              </div>
+
+              <div className="px-6 py-5 space-y-6">
+
+                {/* Step 1 — API Key */}
+                <div className="step-line space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <StepDot n={1} done={steps[0]} active={!steps[0]} />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">API Key</p>
+                  </div>
+                  <div className="pl-8">
+                    <DropZone onKey={handleKey} keyStatus={keyStatus} keyError={keyError} apiKey={apiKey} />
+                  </div>
+                </div>
+
+                {/* Step 2 — Model */}
+                <div className="step-line space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <StepDot n={2} done={steps[1]} active={steps[0]&&!steps[1]} />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Model</p>
+                    </div>
+                  </div>
+                  <div className="pl-8">
+                    <ModelPicker value={model} onChange={setModel} disabled={keyStatus!=='ok'} />
+                  </div>
+                </div>
+
+                {/* Step 3 — Grade */}
+                <div className="step-line space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <StepDot n={3} done={steps[2]} active={steps[1]&&!steps[2]} />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Grade Level <span className="text-red-400">*</span></p>
+                  </div>
+                  <div className="pl-8">
+                    <GradePicker value={grade} onChange={setGrade} disabled={keyStatus!=='ok'} />
+                  </div>
+                </div>
+
+                {/* Step 4 — Supplies */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <StepDot n={4} done={steps[3]} active={steps[2]&&!steps[3]} />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Supplies <span className="text-red-400">*</span></p>
+                  </div>
+                  <div className="pl-8 space-y-2">
+                    <QuickSupplies
+                      supplies={supplies}
+                      onAdd={addSupply}
+                      onRemove={removeSupply}
+                      disabled={keyStatus!=='ok'}
+                    />
+                    <textarea rows={4} maxLength={1000} value={supplies}
+                      onChange={e=>setSupplies(e.target.value)}
+                      disabled={keyStatus!=='ok'}
+                      placeholder="baking soda, vinegar, food coloring, balloons…"
+                      className="w-full rounded-2xl border-2 border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 px-3.5 py-3 text-sm resize-y disabled:opacity-35 disabled:cursor-not-allowed placeholder:text-gray-300 dark:placeholder:text-gray-600 transition-colors" />
+                    <div className="flex justify-between text-[11px] px-0.5">
+                      <span className={supList.length>=2?'text-emerald-600 dark:text-emerald-400':'text-gray-400'}>
+                        {supList.length<2 ? `${supList.length}/2 min` : `✓ ${supList.length} items`}
+                      </span>
+                      <span className={supplies.length>900?'text-orange-500 font-medium':'text-gray-400'}>
+                        {supplies.length}/1000
+                      </span>
+                    </div>
+                    {supList.length>0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {supList.map((s,i)=>(
+                          <button key={i} type="button" onClick={()=>removeSupply(s)}
+                            className="pop-in inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 transition-colors group">
+                            {s}
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px]">×</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Generate button */}
+              <div className="px-6 pb-6">
+                <button type="submit" disabled={!canSubmit}
+                  className="shimmer-btn w-full py-3.5 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 focus:outline-none ring-focus">
+                  {loading
+                    ? <><Dots /><span className="ml-1">Generating…</span></>
+                    : <><span className="text-base">⚗️</span><span>Generate Experiment</span></>}
+                </button>
+              </div>
+            </div>
+          </form>
+        </aside>
+
+        {/* ════ RIGHT: Output Canvas ════ */}
+        <main className="min-h-[600px] flex flex-col">
+          {/* Alerts */}
+          {error && !loading && (
+            <div role="alert" className="fade-up mb-4 flex items-start gap-3 panel-right rounded-2xl border border-red-200 dark:border-red-800/60 px-5 py-4 text-sm text-red-700 dark:text-red-300 shadow-lg shadow-red-500/5">
+              <span className="text-base shrink-0">❌</span><span>{error}</span>
+            </div>
+          )}
+          {safety && !loading && (
+            <div role="alert" className="fade-up mb-4 flex items-start gap-3 panel-right rounded-2xl border border-yellow-200 dark:border-yellow-800/60 px-5 py-4 text-sm text-yellow-800 dark:text-yellow-300 shadow-lg shadow-yellow-500/5">
+              <span className="text-base shrink-0">⚠️</span><span>{safety}</span>
+            </div>
+          )}
+
+          {loading && <Skeleton />}
+
+          {!loading && !exp && !error && !safety && (
+            <EmptyState canSubmit={canSubmit} />
+          )}
+
+          {!loading && exp && (
+            <ExperimentCard
+              exp={exp} gradeLevel={grade} model={model} usage={usage}
+              onCopy={()=>clip(toPlainText(exp, GRADE_LEVELS.find(g=>g.value===grade)?.full||grade))}
+              onPrint={()=>window.print()}
+              onRegen={generate}
+            />
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
